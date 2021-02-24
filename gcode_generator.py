@@ -1,7 +1,9 @@
 
 import math
 
-FILE_START = "G21\nG90\n"
+FILE_START = """
+G21
+G90"""
 # G21 - Millimeters
 # G90 - Absolute distance mode
 # G91 - Incremental distance mode
@@ -59,43 +61,11 @@ def drill_holes(hole_list, depth):
         gc += f"G1 Z{clear_height} F{drill_feedrate} \n"
 
     # return to start
-    # gc += f"G1 Z{clear_height} F{drill_feedrate} \n"
+    gc += f"G1 Z{clear_height} F{drill_feedrate} \n"
     gc += f"G0 X0.0 Y0.0 F{rapid_feedrate} \n"
 
     # end file
     gc += FILE_END
 
     return gc
-
-# generate and preview
-gc = drill_holes([[10,10], [20,20]], inch(0.25))
-print(gc)
-
-filename = 'drill.nc'
-
-# write to file
-with open(filename, 'w') as file:
-    file.write(gc)
-
-import numpy as np
-from itertools import product
-
-v = np.array([0, 1])
-corners = list(product(v, v))
-
-width, height = 10, 20
-np.array(corners[3]) * np.array([width, height])
-
-
-# > G4 S0.5 (line=7)
-# error:28 (Invalid gcode ID:28)
-# error:28 (Invalid gcode ID:28)
-# error:28 (Invalid gcode ID:28)
-# client> ~
-# > G1 Z0.0 F250 (line=18)
-# error:28 (Invalid gcode ID:28)
-# error:28 (Invalid gcode ID:28)
-# error:28 (Invalid gcode ID:28)
-# client> ~
-# [MSG:Pgm End]
-# >
+    
