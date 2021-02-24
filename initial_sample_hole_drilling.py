@@ -2,7 +2,7 @@
 from gcode_generator import drill_holes, inch
 
 # settings
-filename = 'initial_sample_hole_drilling.nc'
+filename = './gcode/initial_sample_hole_drilling.nc'
 
 # generate and preview
 gc = drill_holes([[10,10], [20,20]], inch(0.25))
