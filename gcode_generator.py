@@ -19,8 +19,8 @@ FILE_END = "M30"
 plunge_feedrate = 250
 rapid_feedrate = 8000
 cut_feedrate = 900
-drill_depth = 3.2
-cut_depth = 1.0
+drill_depth = 3.5
+cut_depth = 1.5
 clear_height = 5.0
 
 
@@ -60,6 +60,8 @@ def preview(lines_list, bit_size):
 
     margin = 10
 
+    position = [0, 0]
+
     def disp(l):
         return tuple([int(e) + margin for e in l])
 
@@ -81,6 +83,10 @@ def preview(lines_list, bit_size):
         # loop through points
         for ind, point in enumerate(line):
 
+            # draw travel
+            cv2.line(frame, disp(position), disp(point), (255, 255, 0), 1)
+            position = point
+
             print(point)
             # draw point
             cv2.circle(frame, disp(point), int(bit_size / 2), (0, 0, 255), 1)
@@ -96,12 +102,36 @@ def preview(lines_list, bit_size):
     cv2.destroyAllWindows()  
 
 
+def calc_dist(source, target):
+    return ((source[0] - target[0])**2 + (source[1] - target[1])**2)**0.5
 
-def reorder(l):
 
-    # TODO: solve traverling sales person problem here
+def order_closest_point(list):
     
-    return l
+    position = [0, 0]
+    olist = []
+
+    for i in range(len(list)):
+        dist_list = [calc_dist(position, l[0]) for l in list]
+        minpos = dist_list.index(min(dist_list)) 
+        closest_line = list.pop(minpos)
+        olist.append(closest_line)
+        position = closest_line[0]
+    
+    return olist
+
+
+class Track(object):
+
+    def __init__(self):
+        self.distance = 0
+        self.x = 0
+        self.y = 0
+
+    def track(self, x, y):
+        self.distance += ((self.x - x)**2 + (self.y - y)**2) ** 0.5
+        self.x = x
+        self.y = y
 
 
 def cut_things(cut_list, depth):
@@ -111,8 +141,8 @@ def cut_things(cut_list, depth):
     # checks
     assert depth > 0, "depth should be given as a positive number"
 
-    # reorder
-    cut_list = reorder(cut_lsit)
+    # track position and distance
+    track = Track()
 
     # loop and cut or drill
     for cut in cut_list:
@@ -122,6 +152,7 @@ def cut_things(cut_list, depth):
 
         # move to point
         gc += f"G1 X{cut[0][0]} Y{cut[0][1]} F{rapid_feedrate} \n"
+        track.track(cut[0][0], cut[0][1])
 
         if len(cut) == 1:
 
@@ -150,6 +181,7 @@ def cut_things(cut_list, depth):
                     
                     # move to point
                     gc += f"G1 X{point[0]} Y{point[1]} F{cut_feedrate} \n"
+                    track.track(point[0], point[1])
 
                     # on first point plunge
                     if ind == 0: 
@@ -162,6 +194,10 @@ def cut_things(cut_list, depth):
     # return to start
     gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
     gc += f"G0 X0.0 Y0.0 F{rapid_feedrate} \n"
+    track.track(0, 0)
+
+    # distance
+    print(f'distance travelled: {track.distance}')
 
     # end file
     gc += FILE_END
