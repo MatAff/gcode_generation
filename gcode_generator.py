@@ -19,7 +19,7 @@ FILE_END = "M30"
 plunge_feedrate = 250
 rapid_feedrate = 8000
 cut_feedrate = 900
-drill_depth = 3.5
+drill_depth = 3.2
 cut_depth = 1.5
 clear_height = 5.0
 

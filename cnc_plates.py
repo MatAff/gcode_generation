@@ -14,7 +14,7 @@ def swap_x_y(d):
 # bit size
 bit_size = gg.inch(0.25)
 tnut_bit_size = gg.inch(3.0/8)
-bearing_bit_size = gg.inch(2.0/16)
+bearing_bit_size = gg.inch(5.0/16)
 
 # bearing block
 bearing_block = {
@@ -155,27 +155,12 @@ gc = gg.cut_things(lines_list, 2)
 with open(filename_spindle_plate, 'w') as file:
     file.write(gc)
 
-assert False, 'hold execution here'
-
-
-
-
-
-# z plate tnut holes
-zp_tnut_holes = {
-    'spacing_x': spindle_slot['spacing_x'],
-    'spacing_y': gg.inch(2),
-    'offset_x': 10,
-    'offset_y': 10,
-    'nr_sets_x': 2,
-    'nr_sets_y': 2, 
-}
+# --- create z plate - tnut ---
 
 # z plate
-z_movement = 75
 z_plate = {
     "width": spindle_plate["width"],
-    "height": 200 - (2 * pillow_block["length"]) - z_movement
+    "height": 120
 }
 
 # z plate bearing
@@ -188,66 +173,32 @@ zp_bearings = {
 zp_bracket = {
     'spacing_x': 30,
     'spacing_y': 0,
-    'offset_x': 15,
-    'offset_y': 0,
+    'offset_x': (z_plate['width'] - 30) / 2.0,
+    'offset_y': z_plate['height'] / 2.0,
     'nr_sets_x': 2,
     'nr_sets_y': 1, 
 }
 
-# y plate
-y_plate = {
-    "width": z_plate["width"],
-    "height": 200
+# z plate tnut holes
+zp_tnut_holes = {
+    'spacing_x': sp_mounting_holes['spacing_x'],
+    'spacing_y': gg.inch(1.5),
+    'offset_x': sp_mounting_holes['offset_x'],
+    'offset_y': (z_plate['height'] / 2.0) - (gg.inch(1.5) / 2.0),
+    'nr_sets_x': 2,
+    'nr_sets_y': 2, 
 }
-
-
-# --- create z plate - tnut ---
-
-# mark size
-end_marks = [
-    [z_plate['width'] + bit_size / 2.0, z_plate['height'] + bit_size / 2.0],
-    [z_plate['width'] + bit_size / 2.0, 30],
-    [30, z_plate['height'] + bit_size / 2.0],
-]
-end_marks = gg.holes_to_lines(end_marks)
-
-# tnut holes
-tnut_holes = gg.create_holes_sets(zp_tnut_holes)
-tnut_holes = gg.holes_to_lines(tnut_holes)
-
-# join list line
-lines_list = [
-    *end_marks,
-    *tnut_holes,
-]
-
-# preview
-gg.preview(lines_list, tnut_bit_size)
-
-# path
-filename_z_plate_tnut = './gcode/z_plate_tnut.nc'
-
-# generate gcode 
-gc = gg.cut_things(lines_list, gg.inch(0.55))
-print(gc)
-
-# write to file
-with open(filename_z_plate_tnut, 'w') as file:
-    file.write(gc)
-
-# --- create z plate - bearing ---
 
 # bearing holes
 bearing_template = gg.create_rectangle(
-    vert_bearing['width'], 
-    vert_bearing['height'],
+    vert_bearing['hole_spacing_x'], 
+    vert_bearing['hole_spacing_y'],
     [vert_bearing['offset_x'], vert_bearing['offset_y']]
 )
 bearing_positions = gg.create_rectangle(
     zp_bearings['spacing_x'],
     zp_bearings['spacing_y']
 )
-[bp for bp in bearing_positions]
 
 bearing_holes = []
 for bp in bearing_positions:
@@ -259,11 +210,28 @@ bearing_holes = gg.holes_to_lines(bearing_holes)
 bracket_holes = gg.create_holes_sets(zp_bracket)
 bracket_holes = gg.holes_to_lines(bracket_holes)
 
+# mark size
+end_marks = [
+    [z_plate['width'] + bearing_bit_size / 2.0, z_plate['height'] + bearing_bit_size / 2.0],
+    [z_plate['width'] + bearing_bit_size / 2.0, 30],
+    [30, z_plate['height'] + bearing_bit_size / 2.0],
+]
+end_marks = gg.holes_to_lines(end_marks)
+
+# tnut holes
+tnut_holes = gg.create_holes_sets(zp_tnut_holes)
+tnut_holes = gg.holes_to_lines(tnut_holes)
+
 # join list line
 lines_list = [
+    *end_marks,
     *bearing_holes,
     *bracket_holes,
+    *tnut_holes,
 ]
+
+# reorder
+lines_list = gg.order_closest_point(lines_list)
 
 # preview
 gg.preview(lines_list, bearing_bit_size)
@@ -273,10 +241,69 @@ gc = gg.cut_things(lines_list, gg.inch(0.55))
 print(gc)
 
 # write to file
-filename_z_plate_bearing = './gcode/z_plate_bearing.nc'
+filename_z_plate_bearing = './gcode/z_plate.nc'
 with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
 
-# --- create y plate ---
+# --- y plate ---
 
-# 
+# y plate
+y_plate = {
+    "width": ,
+    "height": 200
+}
+
+# end marks
+end_marks = [
+    [y_plate['width'] + bearing_bit_size / 2.0, y_plate['height'] + bearing_bit_size / 2.0],
+    [y_plate['width'] + bearing_bit_size / 2.0, 30],
+    [30, y_plate['height'] + bearing_bit_size / 2.0],
+]
+end_marks = gg.holes_to_lines(end_marks)
+
+# bearing holes
+bearing_template = gg.create_rectangle(
+    bearing_block['hole_spacing_x'], 
+    bearing_block['hole_spacing_y'],
+    [bearing_block['offset_x'], bearing_block['offset_y']]
+)
+bearing_positions = gg.create_rectangle(
+    yp_bearings['spacing_x'],
+    yp_bearings['spacing_y']
+)
+
+bearing_holes = []
+for bp in bearing_positions:
+    for bt in bearing_template:
+        bearing_holes.append(bp + np.array(bt))
+bearing_holes = gg.holes_to_lines(bearing_holes)
+
+# bracket holes
+bracket_holes = gg.create_holes_sets(yp_bracket)
+bracket_holes = gg.holes_to_lines(bracket_holes)
+
+# supports
+
+
+# join list line
+lines_list = [
+    *end_marks,
+    *bearing_holes,
+    *bracket_holes,
+    *tnut_holes,
+]
+
+# reorder
+lines_list = gg.order_closest_point(lines_list)
+
+# preview
+gg.preview(lines_list, bearing_bit_size)
+
+# generate gcode 
+gc = gg.cut_things(lines_list, gg.inch(0.55))
+print(gc)
+
+# write to file
+filename_z_plate_bearing = './gcode/y_plate.nc'
+with open(filename_z_plate_bearing, 'w') as file:
+    file.write(gc)
