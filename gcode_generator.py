@@ -28,6 +28,74 @@ def inch(i):
     return i * 25.4
 
 
+# --- attempt to simplify ---
+
+def sets_sets(**kwargs):
+    ox = kwargs.get('outer_offset_x', 0.0)
+    oy = kwargs.get('outer_offset_y', 0.0)
+    sx = kwargs.get('outer_spacing_x', 0.0)
+    sy = kwargs.get('outer_spacing_y', 0.0)
+    
+    outer_elements = []
+    for xx in range(kwargs.get('nr_outer_sets_x', 2)):
+        for yy in range(kwargs.get('nr_outer_sets_y', 2)):
+            elements = hole_sets(**kwargs)
+            dx = ox + (sx * xx)
+            dy = oy + (sy * yy)
+            elements = [[[e[0] + dx, e[1] + dy] for e in se] for se in elements]
+            outer_elements.extend(elements)
+    return outer_elements
+
+
+def hole_sets(**kwargs):
+    elements = []
+    for x in range(kwargs.get('nr_sets_x', 2)):
+        for y in range(kwargs.get('nr_sets_y', 2)):
+            e = [
+                kwargs['offset_x'] + x * kwargs.get('spacing_x', 0.0),
+                kwargs['offset_y'] + y * kwargs.get('spacing_y', 0.0), 
+            ]
+
+            # handle slots
+            f = [
+                e[0] + kwargs.get('slot_x', 0.0),
+                e[1] + kwargs.get('slot_y', 0.0)
+            ]
+
+            if e == f:
+                elements.append([e])
+            else:
+                elements.append([e, f])
+    return elements
+    
+
+def even_spaced(**kwargs):
+    elements = []
+    for i in range(kwargs.get('start', 0), kwargs['nr']):
+        dx = (kwargs['x_end'] - kwargs['x_start']) / (kwargs['nr'] - 1)
+        dy = (kwargs['y_end'] - kwargs['y_start']) / (kwargs['nr'] - 1)
+        e = [
+            kwargs['x_start'] + (i * dx),
+            kwargs['y_start'] + (i * dy),
+        ]
+        elements.append([e])
+    return elements
+
+
+def create_elements(**kwargs):
+
+    if kwargs['type'] == 'even_spaced':
+        return even_spaced(**kwargs)
+    elif kwargs['type'] == 'hole_sets':
+        return hole_sets(**kwargs)
+    elif kwargs['type']:
+        return sets_sets(**kwargs)
+    else:
+        raise ValueError('invalid type, is not handled in create_elements function')
+
+
+
+
 def create_rectangle(width, height, offset_x_y=None):
     corners = product(np.array([0, 1]), np.array([0, 1]))
     corners = [c * np.array([width, height]) for c in corners]
