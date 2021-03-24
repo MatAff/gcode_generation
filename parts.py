@@ -23,7 +23,7 @@ shaft_support = {
     "length": 14,
     "hole_spacing_x": 32,
     "hole_height": 20,
-    "offset_x": (42 + 32) / 2.0,
+    "offset_x": (42 - 32) / 2.0,
     "offset_y": 14 / 2.0
 }
 
@@ -33,7 +33,7 @@ pillow_block = {
     "length": 13,
     "hole_spacing_x": 42,
     "hole_height": 15,
-    "offset_x": (55 + 42) / 2.0,
+    "offset_x": (55 - 42) / 2.0,
     "offset_y": 13 / 2.0
 }
 

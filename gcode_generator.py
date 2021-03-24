@@ -28,8 +28,6 @@ def inch(i):
     return i * 25.4
 
 
-# --- attempt to simplify ---
-
 def sets_sets(**kwargs):
     ox = kwargs.get('outer_offset_x', 0.0)
     oy = kwargs.get('outer_offset_y', 0.0)
@@ -94,44 +92,14 @@ def create_elements(**kwargs):
         raise ValueError('invalid type, is not handled in create_elements function')
 
 
-
-
-def create_rectangle(width, height, offset_x_y=None):
-    corners = product(np.array([0, 1]), np.array([0, 1]))
-    corners = [c * np.array([width, height]) for c in corners]
-    if offset_x_y:
-        corners = corners + np.array(offset_x_y)
-    return corners
-
-
-def create_holes_sets(d):
-    holes = []
-    for x in range(d['nr_sets_x']):
-        for y in range(d['nr_sets_y']):
-            h = [
-                d['offset_x'] + x * d['spacing_x'],
-                d['offset_y'] + y * d['spacing_y'], 
-            ]
-            holes.append(h)
-    return holes
-
-
-def transpose(lines_list):
-    return [[[p[1], p[0]] for p in line] for line in lines_list]
-
-
-def holes_to_lines(hole_list):
-    return [[list(h)] for h in hole_list]    
-
-
 def preview(lines_list, bit_size):
 
     margin = 10
-
     position = [0, 0]
+    factor = 4
 
     def disp(l):
-        return tuple([int(e) + margin for e in l])
+        return tuple([int(e) * factor + margin for e in l])
 
     max_x, max_y = 0, 0
     for lines in lines_list:
@@ -139,7 +107,7 @@ def preview(lines_list, bit_size):
             max_x, max_y = max(max_x, point[0]), max(max_y, point[1])
 
     # create display
-    frame = np.zeros((int(max_y + (2 * margin)), int(max_x + (2 * margin)), 3), np.uint8)	
+    frame = np.zeros((int((max_y * factor) + (2 * margin)), int((max_x *factor) + (2 * margin)), 3), np.uint8)	
 
     # draw origin
     cv2.line(frame,(0, 10), (20, 10), (255, 0, 0), 1)
@@ -157,13 +125,14 @@ def preview(lines_list, bit_size):
 
             print(point)
             # draw point
-            cv2.circle(frame, disp(point), int(bit_size / 2), (0, 0, 255), 1)
+            cv2.circle(frame, disp(point), int(bit_size / 2) * factor, (0, 0, 255), 1)
 
             # draw line
             if ind != 0:
                 cv2.line(frame, disp(last_point), disp(point), (0, 255, 0), 1)
 
             last_point = point
+
     # display
     cv2.imshow('image',frame)
     cv2.waitKey(0)    
