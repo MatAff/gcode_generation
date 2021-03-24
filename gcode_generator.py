@@ -96,7 +96,7 @@ def preview(lines_list, bit_size):
 
     margin = 10
     position = [0, 0]
-    factor = 4
+    factor = 3
 
     def disp(l):
         return tuple([int(e) * factor + margin for e in l])

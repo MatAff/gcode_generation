@@ -11,7 +11,7 @@ from parts import bearing_block, vert_bearing, shaft_support, pillow_block
 # bit size
 bit_size = gg.inch(0.25)
 tnut_bit_size = gg.inch(3.0/8)
-bearing_bit_size = gg.inch(5.0/16)
+bearing_bit_size = 4.0
 
 # compute screw rod distance to surface
 screw_to_plate = shaft_support['hole_height'] + bearing_block['hole_height'] - pillow_block['hole_height']
@@ -162,7 +162,7 @@ zp.extend(create_elements(
 
 # reorder - preview - gcode
 zp = gg.order_closest_point(zp)
-gg.preview(zp, bit_size)
+gg.preview(zp, bearing_bit_size)
 gc = gg.cut_things(zp, gg.inch(0.65))
 
 # write to file
@@ -220,9 +220,22 @@ yp.extend(create_elements(
     nr_outer_sets_x = 1,
 ))
 
+# bearings
+yp.extend(create_elements(
+    type = 'sets_sets',
+    spacing_x = bearing_block['hole_spacing_x'],
+    spacing_y = bearing_block['hole_spacing_y'],
+    offset_x = bearing_block['offset_x'],
+    offset_y = bearing_block['offset_y'],
+    outer_offset_y = 40, # TODO: update based on measurement
+    outer_spacing_x = y_plate['width'] - bearing_block['width'],
+    outer_spacing_y = 80, # TODO: update based on measurement
+))
+
+
 # reorder - preview - gcode
 yp = gg.order_closest_point(yp)
-gg.preview(yp, bit_size)
+gg.preview(yp, bearing_bit_size)
 gc = gg.cut_things(yp, gg.inch(0.65))
 
 # write to file
