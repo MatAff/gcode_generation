@@ -97,7 +97,7 @@ clamp.extend(create_elements(
 # reorder - preview - gcode
 clamp = gg.order_closest_point(clamp)
 gg.preview(clamp, bit_size)
-gc = gg.cut_things(clamp, gg.inch(0.65))
+gc = gg.cut_things(clamp, 2.5)
 
 # write to file
 filename_spindle_plate = './gcode/spindle_plate_clamp_indent.nc'
@@ -163,7 +163,7 @@ zp.extend(create_elements(
 # reorder - preview - gcode
 zp = gg.order_closest_point(zp)
 gg.preview(zp, bearing_bit_size)
-gc = gg.cut_things(zp, gg.inch(0.65))
+gc = gg.cut_things(zp, gg.inch(0.5))
 
 # write to file
 filename_z_plate_bearing = './gcode/z_plate.nc'
@@ -171,6 +171,8 @@ with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
 
 # --- y plate ---
+
+narrow_bit = 2.0
 
 # y plate (needs to be wider to accomodate shaft supports)
 y_plate = {
@@ -183,18 +185,27 @@ yp = []
 # vertical line
 yp.extend(create_elements(
     type = 'even_spaced',
-    start = 1, nr = 6,
-    x_start = y_plate['width'] + bearing_bit_size / 2.0, y_start = 0,
-    x_end = y_plate['width'] + bearing_bit_size / 2.0, y_end = (y_plate['height'] + bearing_bit_size / 2.0)
+    start = 1, nr = 4,
+    x_start = y_plate['width'] + narrow_bit / 2.0, y_start = 0,
+    x_end = y_plate['width'] + narrow_bit / 2.0, y_end = (y_plate['height'] + narrow_bit / 2.0)
 ))
 
 # horizontal line
 yp.extend(create_elements(
     type = 'even_spaced',
-    start = 1, nr = 6,
-    x_start = 0, y_start = (y_plate['height'] + bearing_bit_size / 2.0),
-    x_end = y_plate['width'] + bearing_bit_size / 2.0, y_end = (y_plate['height'] + bearing_bit_size / 2.0)
+    start = 1, nr = 4,
+    x_start = 0, y_start = (y_plate['height'] + narrow_bit / 2.0),
+    x_end = y_plate['width'] + narrow_bit / 2.0, y_end = (y_plate['height'] + narrow_bit / 2.0)
 ))
+
+# bracket
+yp.extend(create_elements(
+    type = 'hole_sets',
+    spacing_y = 30,
+    offset_x = (y_plate['width'] - 0) / 2.0,
+    offset_y = (y_plate['height'] - 30) / 2.0,
+    nr_sets_x =  1,
+))    
 
 # shaft supports
 yp.extend(create_elements(
@@ -220,6 +231,18 @@ yp.extend(create_elements(
     nr_outer_sets_x = 1,
 ))
 
+# reorder - preview - gcode
+yp = gg.order_closest_point(yp)
+gg.preview(yp, narrow_bit)
+gc = gg.cut_things(yp, gg.inch(0.25))
+
+# write to file
+filename_z_plate_bearing = './gcode/y_plate.nc'
+with open(filename_z_plate_bearing, 'w') as file:
+    file.write(gc)
+
+yp = []
+
 # bearings
 yp.extend(create_elements(
     type = 'sets_sets',
@@ -227,18 +250,19 @@ yp.extend(create_elements(
     spacing_y = bearing_block['hole_spacing_y'],
     offset_x = bearing_block['offset_x'],
     offset_y = bearing_block['offset_y'],
-    outer_offset_y = 40, # TODO: update based on measurement
+    outer_offset_y = (200 - 130 - bearing_block['height']) / 2.0, # TODO: update based on measurement
     outer_spacing_x = y_plate['width'] - bearing_block['width'],
-    outer_spacing_y = 80, # TODO: update based on measurement
+    outer_spacing_y = 130, # TODO: update based on measurement
 ))
-
 
 # reorder - preview - gcode
 yp = gg.order_closest_point(yp)
 gg.preview(yp, bearing_bit_size)
-gc = gg.cut_things(yp, gg.inch(0.65))
+gc = gg.cut_things(yp, gg.inch(0.25))
 
 # write to file
-filename_z_plate_bearing = './gcode/y_plate.nc'
+filename_z_plate_bearing = './gcode/y_plate_bearing.nc'
 with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
+
+
