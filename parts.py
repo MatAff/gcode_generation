@@ -7,7 +7,7 @@ def swap_x_y(d):
 
 
 # bearing block
-bearing_block = {
+vert_bearing = {
     "width": 34,
     "height": 30,
     "hole_spacing_x": 24,
@@ -38,4 +38,4 @@ pillow_block = {
 }
 
 # vertical bearing block
-vert_bearing = swap_x_y(bearing_block)
+horz_bearing = swap_x_y(vert_bearing)

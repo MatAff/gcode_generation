@@ -4,7 +4,7 @@ import numpy as np
 
 import gcode_generator as gg
 from gcode_generator import create_elements
-from parts import bearing_block, vert_bearing, shaft_support, pillow_block
+from parts import horz_bearing, vert_bearing, shaft_support, pillow_block
 
 # --- settings ---
 
@@ -14,7 +14,7 @@ tnut_bit_size = gg.inch(3.0/8)
 bearing_bit_size = 4.0
 
 # compute screw rod distance to surface
-screw_to_plate = shaft_support['hole_height'] + bearing_block['hole_height'] - pillow_block['hole_height']
+screw_to_plate = shaft_support['hole_height'] + vert_bearing['hole_height'] - pillow_block['hole_height']
 print('screw_to_plate: ' + str(screw_to_plate))
 
 # --- spindle plate ---
@@ -149,7 +149,7 @@ zp.extend(create_elements(
     offset_x = (z_plate['width'] - 30) / 2.0,
     offset_y = z_plate['height'] / 2.0,
     nr_sets_y =  1,
-))    
+))
 
 # tnut holes
 zp.extend(create_elements(
@@ -158,7 +158,7 @@ zp.extend(create_elements(
     spacing_y = gg.inch(1.5),
     offset_x = 10, # mounting holes
     offset_y = (z_plate['height'] / 2.0) - (gg.inch(1.5) / 2.0)
-))    
+))
 
 # reorder - preview - gcode
 zp = gg.order_closest_point(zp)
@@ -205,12 +205,12 @@ yp.extend(create_elements(
     offset_x = (y_plate['width'] - 0) / 2.0,
     offset_y = (y_plate['height'] - 30) / 2.0,
     nr_sets_x =  1,
-))    
+))
 
 # shaft supports
 yp.extend(create_elements(
     type = 'sets_sets',
-    offset_x = shaft_support['offset_x'], 
+    offset_x = shaft_support['offset_x'],
     offset_y = shaft_support['offset_y'],
     spacing_x = shaft_support['hole_spacing_x'],
     nr_sets_y = 1,
@@ -225,7 +225,7 @@ yp.extend(create_elements(
     offset_y = pillow_block['offset_y'],
     spacing_x = pillow_block['hole_spacing_x'],
     nr_sets_y = 1,
-    outer_offset_x = (y_plate['width'] - pillow_block['width']) / 2.0, 
+    outer_offset_x = (y_plate['width'] - pillow_block['width']) / 2.0,
     outer_offset_y = shaft_support['length'],
     outer_spacing_y = y_plate['height'] - 2 * shaft_support['length'] - pillow_block['length'],
     nr_outer_sets_x = 1,
@@ -246,12 +246,12 @@ yp = []
 # bearings
 yp.extend(create_elements(
     type = 'sets_sets',
-    spacing_x = bearing_block['hole_spacing_x'],
-    spacing_y = bearing_block['hole_spacing_y'],
-    offset_x = bearing_block['offset_x'],
-    offset_y = bearing_block['offset_y'],
-    outer_offset_y = (200 - 130 - bearing_block['height']) / 2.0, # TODO: update based on measurement
-    outer_spacing_x = y_plate['width'] - bearing_block['width'],
+    spacing_x = horz_bearing['hole_spacing_x'],
+    spacing_y = horz_bearing['hole_spacing_y'],
+    offset_x = horz_bearing['offset_x'],
+    offset_y = horz_bearing['offset_y'],
+    outer_offset_y = (200 - 130 - horz_bearing['height']) / 2.0,
+    outer_spacing_x = y_plate['width'] - horz_bearing['width'],
     outer_spacing_y = 130, # TODO: update based on measurement
 ))
 
