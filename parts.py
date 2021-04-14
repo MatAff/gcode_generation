@@ -39,3 +39,10 @@ pillow_block = {
 
 # vertical bearing block
 horz_bearing = swap_x_y(vert_bearing)
+
+# servo
+nema17 = {
+    'outer': 42, 
+    'hole_spacing': 31,
+    'offset': (42 - 31) / 2.0,
+}

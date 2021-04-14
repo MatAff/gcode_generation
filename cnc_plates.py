@@ -317,7 +317,8 @@ bit_size = 3
 
 # initialize list
 p = [
-    [[gg.inch(1.0)  - nema17['outer'] / 2 + 16, gg.inch(1.0)  - nema17['outer'] / 2 + 16]]
+    [[gg.inch(1.0) + 16, 
+      gg.inch(1.0) + 16]]
 ]
 
 # mounting holes
@@ -338,7 +339,6 @@ p.extend(create_elements(
     offset_y = gg.inch(0.5),
     nr_sets_y = 1
 ))
-
 
 # reorder - preview - gcode
 p = gg.order_closest_point(p)
