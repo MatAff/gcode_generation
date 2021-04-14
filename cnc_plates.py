@@ -4,7 +4,7 @@ import numpy as np
 
 import gcode_generator as gg
 from gcode_generator import create_elements
-from parts import horz_bearing, vert_bearing, shaft_support, pillow_block
+from parts import horz_bearing, vert_bearing, shaft_support, pillow_block, nema17
 
 # --- settings ---
 
@@ -266,7 +266,7 @@ with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
 
 
-
+# --- z plate finish after late fail ---
 
 # z plate
 z_plate = {
@@ -306,3 +306,45 @@ with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
 
 
+# --- nema17 mount ---
+
+# dist to mountable surface
+print(screw_to_plate)
+dist_to_outer = screw_to_plate + gg.inch(0.5)
+print(dist_to_outer)
+
+bit_size = 3
+
+# initialize list
+p = [
+    [[gg.inch(1.0)  - nema17['outer'] / 2 + 16, gg.inch(1.0)  - nema17['outer'] / 2 + 16]]
+]
+
+# mounting holes
+p.extend(create_elements(
+    type = 'hole_sets',
+    spacing_x = nema17['hole_spacing'],
+    spacing_y = nema17['hole_spacing'],
+    offset_x = nema17['offset'] + gg.inch(1.0)  - nema17['outer'] / 2 + 16,
+    offset_y = nema17['offset'] + gg.inch(1.0)  - nema17['outer'] / 2 + 16,
+))
+
+# mounting holes
+p.extend(create_elements(
+    type = 'hole_sets',
+    spacing_x = dist_to_outer * 2,
+    spacing_y = dist_to_outer * 2,
+    offset_x = gg.inch(0.5),
+    offset_y = gg.inch(0.5),
+    nr_sets_y = 1
+))
+
+
+# reorder - preview - gcode
+p = gg.order_closest_point(p)
+gg.preview(p, bit_size)
+gc = gg.cut_things(p, gg.inch(0.5))
+
+# write to file
+with open('./gcode/nema17_mounting.nc', 'w') as file:
+    file.write(gc)
