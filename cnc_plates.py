@@ -214,7 +214,7 @@ yp.extend(create_elements(
     offset_y = shaft_support['offset_y'],
     spacing_x = shaft_support['hole_spacing_x'],
     nr_sets_y = 1,
-    outer_spacing_x = y_plate['width'] - shaft_support['width'],
+    outer_spacing_x = y_plate['width'] - shaft_support['width'], # this should align with z_plate['width'] - vert_bearing['width'],
     outer_spacing_y = y_plate['height'] - shaft_support['length'],
 ))
 
@@ -262,6 +262,46 @@ gc = gg.cut_things(yp, gg.inch(0.25))
 
 # write to file
 filename_z_plate_bearing = './gcode/y_plate_bearing.nc'
+with open(filename_z_plate_bearing, 'w') as file:
+    file.write(gc)
+
+
+
+
+# z plate
+z_plate = {
+    "width": spindle_plate["width"],
+    "height": 120
+}
+
+# initialize spindle place list
+zp = []
+
+# bracket
+zp.extend(create_elements(
+    type = 'hole_sets',
+    spacing_x = 30,
+    offset_x = (z_plate['width'] - 30) / 2.0,
+    offset_y = z_plate['height'] / 2.0,
+    nr_sets_y =  1,
+))
+
+# tnut holes
+zp.extend(create_elements(
+    type = 'hole_sets',
+    spacing_x = 80, # mounting holes
+    spacing_y = gg.inch(1.5),
+    offset_x = 10, # mounting holes
+    offset_y = (z_plate['height'] / 2.0) - (gg.inch(1.5) / 2.0)
+))
+
+# reorder - preview - gcode
+zp = gg.order_closest_point(zp)
+gg.preview(zp, bearing_bit_size)
+gc = gg.cut_things(zp, gg.inch(0.5))
+
+# write to file
+filename_z_plate_bearing = './gcode/z_plate_finish.nc'
 with open(filename_z_plate_bearing, 'w') as file:
     file.write(gc)
 
