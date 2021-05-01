@@ -19,7 +19,7 @@ FILE_END = "M30"
 plunge_feedrate = 250
 rapid_feedrate = 8000
 cut_feedrate = 900
-drill_depth = 3.2
+drill_depth = 2.2 # 3.2
 cut_depth = 1.5
 clear_height = 5.0
 
@@ -50,8 +50,8 @@ def hole_sets(**kwargs):
     for x in range(kwargs.get('nr_sets_x', 2)):
         for y in range(kwargs.get('nr_sets_y', 2)):
             e = [
-                kwargs['offset_x'] + x * kwargs.get('spacing_x', 0.0),
-                kwargs['offset_y'] + y * kwargs.get('spacing_y', 0.0), 
+                kwargs.get('offset_x', 0) + x * kwargs.get('spacing_x', 0.0),
+                kwargs.get('offset_y', 0) + y * kwargs.get('spacing_y', 0.0), 
             ]
 
             # handle slots
@@ -92,38 +92,28 @@ def create_elements(**kwargs):
         raise ValueError('invalid type, is not handled in create_elements function')
 
 
-def preview(lines_list, bit_size):
+def preview(lines_list, bit_size, frame=None):
 
     margin = 10
     position = [0, 0]
-    factor = 3
+    factor = 2
 
     def disp(l):
         return tuple([int(e) * factor + margin for e in l])
 
-    max_x, max_y = 0, 0
-    for lines in lines_list:
-        for point in lines:
-            max_x, max_y = max(max_x, point[0]), max(max_y, point[1])
+    def draw_lines(line, position, bit_size=bit_size):
 
-    # create display
-    frame = np.zeros((int((max_y * factor) + (2 * margin)), int((max_x *factor) + (2 * margin)), 3), np.uint8)	
-
-    # draw origin
-    cv2.line(frame,(0, 10), (20, 10), (255, 0, 0), 1)
-    cv2.line(frame,(10, 0), (10, 20), (255, 0, 0), 1)
-
-    # loop through lines
-    for line in lines_list:
+        print(line)
 
         # loop through points
         for ind, point in enumerate(line):
+
+            print(ind)
 
             # draw travel
             cv2.line(frame, disp(position), disp(point), (255, 255, 0), 1)
             position = point
 
-            print(point)
             # draw point
             cv2.circle(frame, disp(point), int(bit_size / 2) * factor, (0, 0, 255), 1)
 
@@ -133,10 +123,47 @@ def preview(lines_list, bit_size):
 
             last_point = point
 
+        return point
+
+    max_x, max_y = 300, 300 # default
+    for lines in lines_list:
+        if not isinstance(lines, dict):
+            for point in lines:
+                max_x, max_y = max(max_x, point[0]), max(max_y, point[1])
+
+    # create display
+    if frame is None:
+        frame = np.zeros((int((max_y * factor) + (2 * margin)), int((max_x *factor) + (2 * margin)), 3), np.uint8)	
+
+    # draw origin
+    cv2.line(frame,(0, 10), (20, 10), (255, 0, 0), 1)
+    cv2.line(frame,(10, 0), (10, 20), (255, 0, 0), 1)
+
+    # loop through lines
+    for line in lines_list:
+
+        if isinstance(line, dict):
+
+            if line['type'] == 'drill':
+                points = [[p] for p in line['points']]
+                for p in points:
+                    position = draw_lines(p, position)
+            if line['type'] == 'line':
+                print(line['points'])
+                position = draw_lines(line['points'], position)
+            if line['type'] == 'circle':
+                position = draw_lines([line['center']], position, line['radius'] * 2)
+
+        else:
+
+            position = draw_lines(line, position)
+
     # display
     cv2.imshow('image',frame)
     cv2.waitKey(0)    
     cv2.destroyAllWindows()  
+
+    return frame
 
 
 def calc_dist(source, target):
@@ -170,13 +197,27 @@ class Track(object):
         self.x = x
         self.y = y
 
+    def track_circle(self, r):
+        self.distance += 2 * 3.14159 * r
+
+
+def lift_and_move(gc, point, track):
+    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n" # lift
+    gc += f"G1 X{point[0]} Y{point[1]} F{rapid_feedrate} \n" # move
+    track.track(*point)
+    return gc
+
+
+def get_sub_depths(depth, step):
+    return [min ((i + 1) * step, depth)  for i in range(math.ceil(depth / step))]
+
 
 def cut_things(cut_list, depth):
 
     gc = FILE_START
 
     # checks
-    assert depth > 0, "depth should be given as a positive number"
+    assert depth >= 0, "depth should be given as a positive number"
 
     # track position and distance
     track = Track()
@@ -184,49 +225,108 @@ def cut_things(cut_list, depth):
     # loop and cut or drill
     for cut in cut_list:
 
-        # lift
-        gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
+        if isinstance(cut, dict):
 
-        # move to point
-        gc += f"G1 X{cut[0][0]} Y{cut[0][1]} F{rapid_feedrate} \n"
-        track.track(cut[0][0], cut[0][1])
+            if cut['type'] == 'raw':
+                
+                gc += '\n'.join(cut['content']) + '\n'
 
-        if len(cut) == 1:
+            elif cut['type'] == 'drill':
 
-            # DRILL
+                for point in cut['points']:
 
-            # cut - divide depth in incremental steps
-            nr_cycles = math.ceil(depth / drill_depth)
-            for i in range(nr_cycles):
+                    gc = lift_and_move(gc, point, track)
 
-                # drill
-                sub_depth = min ((i + 1) * drill_depth, depth)
-                gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n"
-
-                # pull back
-                gc += f"G1 Z1.0 F{plunge_feedrate} \n"
-            
-            gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
-
-        else: 
-
-            # cut - divide depth in incremental steps
-            nr_cycles = math.ceil(depth / cut_depth)
-            for i in range(nr_cycles):
-
-                for ind, point in enumerate(cut):
+                    sub_depths = get_sub_depths(cut['depth'], drill_depth)
+                    for sub_depth in sub_depths:
+                        gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n" # drill 
+                        gc += f"G1 Z1.0 F{plunge_feedrate} \n" # pull back
                     
-                    # move to point
-                    gc += f"G1 X{point[0]} Y{point[1]} F{cut_feedrate} \n"
-                    track.track(point[0], point[1])
+                    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
 
-                    # on first point plunge
-                    if ind == 0: 
-                        sub_depth = min ((i + 1) * cut_depth, depth)
-                        gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n"
+            elif cut['type'] == 'line':
+
+                gc = lift_and_move(gc, cut['points'][0], track)
+
+                sub_depths = get_sub_depths(cut['depth'], drill_depth)
+                for sub_depth in sub_depths:
+                    for ind, point in enumerate(cut['points']):
+                        
+                        # move to point
+                        gc += f"G1 X{point[0]} Y{point[1]} F{cut_feedrate} \n"
+                        track.track(point[0], point[1])
+
+                        # on first point plunge
+                        if ind == 0 : gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n"
+
+                    # lift
+                    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
+
+            elif cut['type'] == 'circle':
+
+                start_point = [cut['center'][0], cut['center'][1] - cut['radius']]
+                gc = lift_and_move(gc, start_point, track)
+                gc += f"G1 X{start_point[0]} Y{start_point[1]} Z0 F{cut_feedrate} \n"
+
+                sub_depths = get_sub_depths(cut['depth'], drill_depth)
+                for sub_depth in sub_depths:
+                    gc += f"G2 X{start_point[0]} Y{start_point[1]} J{cut['radius']} Z-{sub_depth} F{plunge_feedrate} \n"
+                    track.track_circle(cut['radius'])
 
                 # lift
                 gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
+
+            else:
+
+                raise ValueError(f"unknown cut type {cut['type']}")
+
+        else:
+
+            # --- ORIGINAL LIST BASED APPROACH ---
+
+            # lift
+            gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
+
+            # move to point
+            gc += f"G1 X{cut[0][0]} Y{cut[0][1]} F{rapid_feedrate} \n"
+            track.track(cut[0][0], cut[0][1])
+
+            if len(cut) == 1:
+
+                # DRILL
+
+                # cut - divide depth in incremental steps
+                nr_cycles = math.ceil(depth / drill_depth)
+                for i in range(nr_cycles):
+
+                    # drill
+                    sub_depth = min ((i + 1) * drill_depth, depth)
+                    gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n"
+
+                    # pull back
+                    gc += f"G1 Z1.0 F{plunge_feedrate} \n"
+                
+                gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
+
+            else: 
+
+                # cut - divide depth in incremental steps
+                nr_cycles = math.ceil(depth / cut_depth)
+                for i in range(nr_cycles):
+
+                    for ind, point in enumerate(cut):
+                        
+                        # move to point
+                        gc += f"G1 X{point[0]} Y{point[1]} F{cut_feedrate} \n"
+                        track.track(point[0], point[1])
+
+                        # on first point plunge
+                        if ind == 0: 
+                            sub_depth = min ((i + 1) * cut_depth, depth)
+                            gc += f"G1 Z-{sub_depth} F{plunge_feedrate} \n"
+
+                    # lift
+                    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"
 
     # return to start
     gc += f"G1 Z{clear_height} F{plunge_feedrate} \n"

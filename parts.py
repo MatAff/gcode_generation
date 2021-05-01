@@ -45,4 +45,23 @@ nema17 = {
     'outer': 42, 
     'hole_spacing': 31,
     'offset': (42 - 31) / 2.0,
+    'big_circle': 22,
+}
+
+sbr16uu_vert = {
+    "width": 45,
+    "height": 45,
+    "hole_spacing_x": 32,
+    "hole_spacing_y": 30,
+    "offset_x": (45 - 32) / 2.0,
+    "offset_y": (45 - 30) / 2.0,
+    "hole_height": 20,
+}
+
+sbr16uu_horz = swap_x_y(sbr16uu_vert)
+
+sbr_rail = {
+    "width": 40,
+    "height": 25,
+    
 }
