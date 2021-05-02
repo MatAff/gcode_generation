@@ -63,5 +63,4 @@ sbr16uu_horz = swap_x_y(sbr16uu_vert)
 sbr_rail = {
     "width": 40,
     "height": 25,
-    
 }
