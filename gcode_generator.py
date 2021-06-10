@@ -19,8 +19,8 @@ FILE_END = "M30"
 plunge_feedrate = 250
 rapid_feedrate = 8000
 cut_feedrate = 900
-drill_depth = 2.2 # 3.2
-cut_depth = 1.5
+drill_depth = 3.3
+cut_depth = 2.2
 clear_height = 5.0
 
 
@@ -248,7 +248,7 @@ def cut_things(cut_list, depth):
 
                 gc = lift_and_move(gc, cut['points'][0], track)
 
-                sub_depths = get_sub_depths(cut['depth'], drill_depth)
+                sub_depths = get_sub_depths(cut['depth'], cut_depth)
                 for sub_depth in sub_depths:
                     for ind, point in enumerate(cut['points']):
                         

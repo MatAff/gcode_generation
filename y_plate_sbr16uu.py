@@ -28,7 +28,7 @@ rc = []
 rc.append({
     'type': 'line',
     'points': outer[0:5],
-    'depth': 4,
+    'depth': 12,
 })
 
 # preview
@@ -102,12 +102,12 @@ bearing_holes.extend(create_elements(
 bearing_holes = gg.order_closest_point(bearing_holes)
 
 bearing_holes = [h[0] for h in bearing_holes]
-
+bearing_holes = bearing_holes[33:] # fix to finish cut
 rc = []
 
 # outline
 rc.append({
-    'type': 'line',
+    'type': 'drill',
     'points': bearing_holes,
     'depth': gg.inch(0.5),
 })

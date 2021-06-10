@@ -27,7 +27,7 @@ rc.append({
     'type': 'circle',
     'depth': 11,
     'center': [width / 2.0 + bit / 2.0, screw_to_plate + bit / 2.0],
-    'radius': 10 / 2.0 - bit / 2.0
+    'radius': 10 / 2.0 - bit / 2.0 + 0.25
 })
 
 rc.append({
