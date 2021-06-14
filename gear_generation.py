@@ -93,18 +93,38 @@ cv2.circle(frame, center, int(scale_r(dedendum)), (255, 255, 0), 1)
 cv2.circle(frame, center, int(scale_r(base_circle)), (255, 255, 0), 1)
 
 # get first  point
-first_rotate = 360 / nr_teeth * 0
+first_rotate = 360 / nr_teeth * -0.25
 base_point = rotate([0, base_circle], first_rotate)
 print(base_point)
 cv2.circle(frame, scale_point(base_point, frame_size), 1, (255, 255, 255), 1)
 
+points = []
 for d in range(35):
     alt_base = rotate(base_point, d)
     print(alt_base)
     print(d/360 * base_circle * math.pi)
     alt_point = get_perpendicual_point(alt_base, d/180 * base_circle * math.pi)
-    print(alt_point)
-    cv2.circle(frame, scale_point(alt_point, frame_size), 4, (d * 10, d * 10, d * 10), 1)
+    points.append(alt_point)
+    # print(alt_point)
+    # cv2.circle(frame, scale_point(alt_point, frame_size), 4, (d * 10, d * 10, d * 10), 1)
+
+# add reverse points
+for p in points[::-1]:
+    points.append([p[0] * -1, p[1]])
+
+# repeat
+teeth_points = []
+for r in range(nr_teeth):
+    print(r)
+    rotate_deg = 360 / nr_teeth * r
+    for p in points:
+        teeth_points.append(rotate(p, rotate_deg))
+
+# display line
+for s, e in zip(teeth_points[0:-1], teeth_points[1:]):
+    cv2.line(frame, scale_point(s, frame_size), scale_point(e, frame_size), (255, 255, 0))    
+
+
 
 cv2.imshow('image',frame)
 cv2.waitKey(0)    
