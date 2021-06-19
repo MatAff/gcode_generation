@@ -4,10 +4,11 @@ import numpy as np
 
 import cv2
 
-# settings
-nr_teeth = 20
-pitch_circle = 150
-pressure_angle_deg = 20 # degree
+# plot constants
+FRAME_SIZE = [750,750]
+PLOT_ORIGIN = [-100, 200] # (np.array(FRAME_SIZE) / -2 / SCALE).astype(int) 
+SCALE = 3
+
 
 
 def deg_to_rad(deg):
@@ -41,13 +42,17 @@ def rotate(point, deg):
     return np.matmul(R, np.array(point))
 
 
-def scale_point(point, frame_size, scale=2):
-    center = (np.array(frame_size) / 2).astype(int)
-    return center - (np.array(point) * 2).astype(int)
+def point_to_plot(point):
+    # return (PLOT_ORIGIN - (np.array(point)) * SCALE).astype(int)
+    return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(int)
 
 
-def scale_r(r, scale=2):
-    return r * scale
+def scale_r(r):
+    return r * SCALE
+
+
+def dist(start, end):
+    return ((np.array(start) - np.array(end)) ** 2).sum()**0.5
 
 
 def abc(a, b, c):
@@ -72,9 +77,16 @@ def get_perpendicual_point(point, dist):
     return [x, y]
 
 
-# def get_gear(pitch_circle, nr_teeth, pressure_angle):
+# settings
+nr_teeth = 20
+pitch_circle = 150
+pressure_angle_deg = 20 # degree
+center = [0, 0]
+red = (0, 0, 255)
+blue = (255, 0, 0)
+green = (0, 255, 0)
 
-frame_size = [750,750]
+# def get_gear(pitch_circle, nr_teeth, pressure_angle):
 
 module = get_module(pitch_circle, nr_teeth)
 addendum = get_addendum_circle(pitch_circle, module)
@@ -82,31 +94,34 @@ dedendum = get_dedendum_circle(pitch_circle, module)
 base_circle = get_base_circle(pitch_circle, pressure_angle_deg)
 
 # create frame and draw origin
-frame = np.zeros(frame_size, np.uint8)	
-center = list((np.array(frame_size) / 2).astype(int))
-cv2.circle(frame, center, 5, (255, 255, 0), 1)
+frame = np.zeros([*FRAME_SIZE, 3], np.uint8)	
+cv2.circle(frame, point_to_plot(center), 5, red, 1)
 
 # draw circles
-cv2.circle(frame, center, int(scale_r(pitch_circle)), (255, 255, 0), 1)
-cv2.circle(frame, center, int(scale_r(addendum)), (255, 255, 0), 1)
-cv2.circle(frame, center, int(scale_r(dedendum)), (255, 255, 0), 1)
-cv2.circle(frame, center, int(scale_r(base_circle)), (255, 255, 0), 1)
+cv2.circle(frame, point_to_plot(center), int(scale_r(pitch_circle)), red, 1)
+cv2.circle(frame, point_to_plot(center), int(scale_r(addendum)), blue, 1)
+cv2.circle(frame, point_to_plot(center), int(scale_r(dedendum)), blue, 1)
+cv2.circle(frame, point_to_plot(center), int(scale_r(base_circle)), red, 1)
 
-# get first  point
-first_rotate = 360 / nr_teeth * -0.25
-base_point = rotate([0, base_circle], first_rotate)
+# get pitch point
+first_rotate = 360 / nr_teeth * 0.25 # this should be -0.25 
+pitch_point = rotate([0, pitch_circle], first_rotate)
+print(pitch_point)
+cv2.circle(frame, point_to_plot(pitch_point), 1, green, 3)
+
+# get base point
+base_point = get_tangent_point(pitch_point, base_circle)[0]
 print(base_point)
-cv2.circle(frame, scale_point(base_point, frame_size), 1, (255, 255, 255), 1)
+pitch_base_dist = dist(pitch_point, base_point)
+cv2.circle(frame, point_to_plot(base_point), 1, green, 3)
 
+# roll points
 points = []
-for d in range(35):
+for d in range(-25, 25):
     alt_base = rotate(base_point, d)
-    print(alt_base)
-    print(d/360 * base_circle * math.pi)
-    alt_point = get_perpendicual_point(alt_base, d/180 * base_circle * math.pi)
+    alt_dist = pitch_base_dist - d/180 * base_circle * math.pi
+    alt_point = get_perpendicual_point(alt_base, alt_dist)
     points.append(alt_point)
-    # print(alt_point)
-    # cv2.circle(frame, scale_point(alt_point, frame_size), 4, (d * 10, d * 10, d * 10), 1)
 
 # add reverse points
 for p in points[::-1]:
@@ -120,17 +135,25 @@ for r in range(nr_teeth):
     for p in points:
         teeth_points.append(rotate(p, rotate_deg))
 
-# display line
+# teeth_points = points
+
+# display teeth
 for s, e in zip(teeth_points[0:-1], teeth_points[1:]):
-    cv2.line(frame, scale_point(s, frame_size), scale_point(e, frame_size), (255, 255, 0))    
-
-
+    cv2.line(frame, point_to_plot(s), point_to_plot(e), green)    
 
 cv2.imshow('image',frame)
 cv2.waitKey(0)    
 cv2.destroyAllWindows()  
 
 
+# --- TEST FUNCTIONS ---
+
+
+def test_dist():
+    start = [0, 0]
+    end = [3, 4]
+    exp = 5
+    assert dist(start, end) == exp
 
 
 def test_get_tangent_point():
@@ -155,3 +178,9 @@ def test_get_tangent_point():
 # iteteratively cut calculate mid point on involute line, till required precision is reached
 # mirror involute
 # multiply and rotate
+
+# def scale_point(point, FRAME_SIZE, scale=2):
+#     center = (np.array(FRAME_SIZE) / 2).astype(int)
+#     return center - (np.array(point) * 2).astype(int)
+
+
