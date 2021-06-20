@@ -12,6 +12,14 @@ FRAME_SIZE = [750,750]
 PLOT_ORIGIN = [-100, 150] # (np.array(FRAME_SIZE) / -2 / SCALE).astype(int) 
 SCALE = 4
 
+ESC = 27
+LEFT = 81
+UP = 82
+RIGHT = 83
+DOWN = 84
+MIN = 45
+PLUS = 61
+
 red = (0, 0, 255)
 blue = (255, 0, 0)
 green = (0, 255, 0)
@@ -23,6 +31,37 @@ def point_to_plot(point):
 
 def scale_r(r):
     return r * SCALE
+
+
+def interactive_plot(plot_func):
+
+    global PLOT_ORIGIN
+    global SCALE
+
+    running = True
+    while running:
+        
+        frame = plot_func()
+        cv2.imshow('image', frame)
+        key = cv2.waitKey(0)    
+        print(key)
+    
+        if key == ESC:
+            running=False
+        if key == LEFT:
+            PLOT_ORIGIN = [PLOT_ORIGIN[0] + 10, PLOT_ORIGIN[1]]
+        if key == RIGHT:
+            PLOT_ORIGIN = [PLOT_ORIGIN[0] - 10, PLOT_ORIGIN[1]]
+        if key == UP:
+            PLOT_ORIGIN = [PLOT_ORIGIN[0], PLOT_ORIGIN[1] - 10]
+        if key == DOWN:
+            PLOT_ORIGIN = [PLOT_ORIGIN[0], PLOT_ORIGIN[1] + 10]
+        if key == MIN:
+            SCALE = SCALE / 1.1
+        if key == PLUS:
+            SCALE = SCALE * 1.1
+
+    cv2.destroyAllWindows()  
 
 
 def dist(start, end):
@@ -254,40 +293,28 @@ cog = get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size)
 # add tool path
 cog = cog_tool_path(cog, bit_size)
 
-# plot
-frame = plot_cog(cog)
+# plot function to pass to interactive plot
+def plot_func():
+    return plot_cog(cog)
 
-cv2.imshow('image',frame)
-cv2.waitKey(0)    
-cv2.destroyAllWindows()  
+# interactive plot
+interactive_plot(plot_func)
 
 
 # --- GENERATE GCODE ---
 
 
 rc = []
-
-rc.append({
-    'type': 'circle',
-    'depth': 5,
-    'center': [0, 0],
-    'radius':  0
-})
-
-rc.append({
-    'type': 'line',
-    'points': cog['all_cut_points'],
-    'depth': 6,
-})
+rc.append({'type': 'circle', 'depth': 5,  'center': [0, 0], 'radius':  0})
+rc.append({'type': 'line', 'points': cog['all_cut_points'], 'depth': 6})
 
 # preview
 frame = gg.preview(rc, bit_size)
 
 # generate gcode
 gc = gg.cut_things(rc, 0)
-print(gc)
 
-# # write to file
+# write to file
 open('./gcode/gear.nc', 'w').write(gc)
 
 
