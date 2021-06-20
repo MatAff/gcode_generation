@@ -12,40 +12,12 @@ FRAME_SIZE = [750,750]
 PLOT_ORIGIN = [-100, 150] # (np.array(FRAME_SIZE) / -2 / SCALE).astype(int) 
 SCALE = 4
 
-
-def deg_to_rad(deg):
-    return deg * math.pi / 180.0
-
-
-def get_circular_pitch(pitch_circle):
-    return pitch_circle * math.pi
-
-
-def get_base_circle(pitch_circle, pressure_angle_deg):
-    return pitch_circle * math.cos(deg_to_rad(pressure_angle_deg))
-
-
-def get_module(pitch_circle, nr_teeth):
-    return pitch_circle / nr_teeth
-
-
-def get_addendum_circle(pitch_circle, module):
-    return pitch_circle + 1.0 * module
-
-
-def get_dedendum_circle(pitch_circle, module):
-    return pitch_circle - 1.25 * module
-
-
-def rotate(point, deg):
-    rad = deg_to_rad(deg)
-    R = np.array([[math.cos(rad), -math.sin(rad)],
-                  [math.sin(rad), math.cos(rad)]])
-    return np.matmul(R, np.array(point))
+red = (0, 0, 255)
+blue = (255, 0, 0)
+green = (0, 255, 0)
 
 
 def point_to_plot(point):
-    # return (PLOT_ORIGIN - (np.array(point)) * SCALE).astype(int)
     return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(int)
 
 
@@ -57,9 +29,15 @@ def dist(start, end):
     return ((np.array(start) - np.array(end)) ** 2).sum()**0.5
 
 
-def abc(a, b, c):
-    d = (b**2 - 4*a*c)**0.5
-    return (-b+d) / (2*a), (-b-d) / (2*a)
+def deg_to_rad(deg):
+    return deg * math.pi / 180.0
+
+
+def rotate(point, deg):
+    rad = deg_to_rad(deg)
+    R = np.array([[math.cos(rad), -math.sin(rad)],
+                  [math.sin(rad), math.cos(rad)]])
+    return np.matmul(R, np.array(point))
 
 
 def get_tangent_point(point, r):
@@ -70,6 +48,11 @@ def get_tangent_point(point, r):
     y1 = (r**2 - point[0] * x1) / point[1]
     y2 = (r**2 - point[0] * x2) / point[1]
     return [x1, y1], [x2, y2]
+
+
+def abc(a, b, c):
+    d = (b**2 - 4*a*c)**0.5
+    return (-b+d) / (2*a), (-b-d) / (2*a)
 
 
 def get_perpendicual_point(point, dist):
@@ -122,140 +105,165 @@ def intersect(A, B, C, D):
     return(C + s * CD)
 
 
+def get_circular_pitch(pitch_circle):
+    return pitch_circle * math.pi
+
+
+def get_base_circle(pitch_circle, pressure_angle_deg):
+    return pitch_circle * math.cos(deg_to_rad(pressure_angle_deg))
+
+
+def get_module(pitch_circle, nr_teeth):
+    return pitch_circle / nr_teeth
+
+
+def get_addendum_circle(pitch_circle, module):
+    return pitch_circle + 1.0 * module
+
+
+def get_dedendum_circle(pitch_circle, module):
+    return pitch_circle - 1.25 * module
+
+
+def get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size):
+
+    cog = {}
+    
+    cog['pitch_circle'] = pitch_circle
+    cog['nr_teeth'] = nr_teeth
+    cog['pressure_angle_deg'] = pressure_angle_deg
+
+    cog['module'] = get_module(cog['pitch_circle'], cog['nr_teeth'])
+    cog['addendum'] = get_addendum_circle(cog['pitch_circle'], cog['module'])
+    cog['dedendum'] = get_dedendum_circle(cog['pitch_circle'], cog['module'])
+    cog['base_circle'] = get_base_circle(cog['pitch_circle'], cog['pressure_angle_deg'])
+
+    # get pitch point
+    first_rotate = 360 / nr_teeth * 0.25
+    pitch_point = rotate([0, cog['pitch_circle']], first_rotate)
+
+    # get base point
+    base_point = get_tangent_point(pitch_point, cog['base_circle'])[0]
+    pitch_base_dist = dist(pitch_point, base_point)
+
+    # roll points
+    points = []
+    for d in np.arange(25, -25, -0.1):
+        alt_base = rotate(base_point, d)
+        alt_dist = pitch_base_dist - d/180 * cog['base_circle'] * math.pi
+        if alt_dist > 0:
+            alt_point = get_perpendicual_point(alt_base, alt_dist)
+            dist_to_center = dist([0, 0], alt_point)
+            if (dist_to_center > cog['dedendum']) & (dist_to_center < (cog['addendum'] + (bit_size / 2.0))):
+                points.append(alt_point)
+
+    # store single point for tool path generation
+    cog['single_points'] = points.copy()
+
+    # add reverse points and repeat
+    # TODO: move this to separate function
+    for p in points[::-1]:
+        points.append([p[0] * -1, p[1]])
+    teeth_points = []
+    for r in range(nr_teeth):
+        rotate_deg = 360 / - nr_teeth * r
+        for p in points:
+            teeth_points.append(rotate(p, rotate_deg))
+    cog['teeth_points'] = teeth_points
+
+    return cog
+
+
+def plot_cog(cog):
+
+    # create frame and draw origin
+    frame = np.zeros([*FRAME_SIZE, 3], np.uint8)	
+    cv2.circle(frame, point_to_plot(center), 5, red, 1)
+
+    # draw circles
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['pitch_circle'])), red, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['addendum'])), blue, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['dedendum'])), blue, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['base_circle'])), red, 1)
+
+    # display teeth
+    for s, e in zip(cog['teeth_points'][0:-1], cog['teeth_points'][1:]):
+        cv2.line(frame, point_to_plot(s), point_to_plot(e), green)    
+
+    # display cut
+    if cog.get('all_cut_points', None) is not None:
+        all_cut_points = cog['all_cut_points']
+        for s, e in zip(all_cut_points[0:-1], all_cut_points[1:]):
+            cv2.line(frame, point_to_plot(s), point_to_plot(e), blue)    
+
+    return frame
+
+
+def cog_tool_path(cog, bit_size):
+
+    points = cog['single_points']
+    offset = bit_size / 2.0
+
+    cut_points = []
+    last_line = None
+    for p_pos in range(len(points)-2):
+        s = points[p_pos]
+        m = points[p_pos + 1]
+        e = points[p_pos + 2]
+
+        current_offsets = get_offset_lines(s, m, offset)
+        next_offsets = get_offset_lines(m, e, offset)
+
+        # weak point
+        if last_line is None:
+            last_line = current_offsets[1]
+
+        # compute intersects with next offsets
+        A, B = last_line[0], last_line[1]
+        C, D = next_offsets[1][0], next_offsets[1][1]
+        intersect_point = intersect(A, B, C, D)
+        cut_points.append(intersect_point.tolist()[0])
+        last_line = [C, D]
+
+    # add reverse points and repeat
+    for p in cut_points[::-1]:
+        cut_points.append([p[0] * -1, p[1]])
+    all_cut_points = []
+    for r in range(nr_teeth):
+        rotate_deg = 360 / - nr_teeth * r
+        for p in cut_points:
+            all_cut_points.append(rotate(p, rotate_deg))
+
+    # append start
+    all_cut_points.append(all_cut_points[0])
+    cog['all_cut_points'] = all_cut_points
+
+    return cog
+
+
 # settings
 nr_teeth = 15
 pitch_circle = 50
 pressure_angle_deg = 20 # degree
 center = [0, 0]
-
-red = (0, 0, 255)
-blue = (255, 0, 0)
-green = (0, 255, 0)
-
 bit_size = gg.inch(0.25)
 
+# generate gear
+cog = get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size)
 
-# TODO
-# - avoid weird back and forth at the bottom
-#   - due to perpendicular crossing y axis? 
-# - convert to gcode
+# add tool path
+cog = cog_tool_path(cog, bit_size)
 
-# def get_gear(pitch_circle, nr_teeth, pressure_angle_deg):
-
-module = get_module(pitch_circle, nr_teeth)
-addendum = get_addendum_circle(pitch_circle, module)
-dedendum = get_dedendum_circle(pitch_circle, module)
-base_circle = get_base_circle(pitch_circle, pressure_angle_deg)
-
-# create frame and draw origin
-frame = np.zeros([*FRAME_SIZE, 3], np.uint8)	
-cv2.circle(frame, point_to_plot(center), 5, red, 1)
-
-# draw circles
-cv2.circle(frame, point_to_plot(center), int(scale_r(pitch_circle)), red, 1)
-cv2.circle(frame, point_to_plot(center), int(scale_r(addendum)), blue, 1)
-cv2.circle(frame, point_to_plot(center), int(scale_r(dedendum)), blue, 1)
-cv2.circle(frame, point_to_plot(center), int(scale_r(base_circle)), red, 1)
-
-# get pitch point
-first_rotate = 360 / nr_teeth * 0.25
-pitch_point = rotate([0, pitch_circle], first_rotate)
-cv2.circle(frame, point_to_plot(pitch_point), 1, green, 3)
-
-# get base point
-base_point = get_tangent_point(pitch_point, base_circle)[0]
-pitch_base_dist = dist(pitch_point, base_point)
-cv2.circle(frame, point_to_plot(base_point), 1, green, 3)
-
-# roll points
-points = []
-for d in np.arange(25, -25, -0.1):
-    alt_base = rotate(base_point, d)
-    alt_dist = pitch_base_dist - d/180 * base_circle * math.pi
-    if alt_dist > 0:
-        alt_point = get_perpendicual_point(alt_base, alt_dist)
-        dist_to_center = dist([0, 0], alt_point)
-        if (dist_to_center > dedendum) & (dist_to_center < (addendum + (bit_size / 2.0))):
-            points.append(alt_point)
-
-single_points = points.copy()
-
-# add reverse points
-for p in points[::-1]:
-    points.append([p[0] * -1, p[1]])
-
-# repeat
-teeth_points = []
-for r in range(nr_teeth):
-    rotate_deg = 360 / - nr_teeth * r
-    for p in points:
-        teeth_points.append(rotate(p, rotate_deg))
-
-# display teeth
-for s, e in zip(teeth_points[0:-1], teeth_points[1:]):
-    cv2.line(frame, point_to_plot(s), point_to_plot(e), green)    
-
-points = single_points
-
-# def points_to_path(points, bit_size):
-
-offset = bit_size / 2.0
-
-cut_points = []
-
-last_line = None
-for p_pos in range(len(points)-2):
-    s = points[p_pos]
-    m = points[p_pos + 1]
-    e = points[p_pos + 2]
-
-    current_offsets = get_offset_lines(s, m, offset)
-    next_offsets = get_offset_lines(m, e, offset)
-
-    # weak point
-    if last_line is None:
-        last_line = current_offsets[1]
-
-    # compute intersects with next offsets
-    A, B = last_line[0], last_line[1]
-    C, D = next_offsets[1][0], next_offsets[1][1]
-    intersect_point = intersect(A, B, C, D)
-    cut_points.append(intersect_point.tolist()[0])
-    last_line = [C, D]
-
-
-# add reverse points
-for p in cut_points[::-1]:
-    cut_points.append([p[0] * -1, p[1]])
-
-# repeat
-all_cut_points = []
-for r in range(nr_teeth):
-    rotate_deg = 360 / - nr_teeth * r
-    for p in cut_points:
-        all_cut_points.append(rotate(p, rotate_deg))
-
-# append start
-all_cut_points.append(all_cut_points[0])
-
-# display teeth
-for s, e in zip(all_cut_points[0:-1], all_cut_points[1:]):
-    cv2.line(frame, point_to_plot(s), point_to_plot(e), blue)    
-
-
-
-
-
-# start pos
-# get offset line
-# computer intersect with offset line
-# go to intersect
+# plot
+frame = plot_cog(cog)
 
 cv2.imshow('image',frame)
 cv2.waitKey(0)    
 cv2.destroyAllWindows()  
 
+
 # --- GENERATE GCODE ---
+
 
 rc = []
 
@@ -268,7 +276,7 @@ rc.append({
 
 rc.append({
     'type': 'line',
-    'points': all_cut_points,
+    'points': cog['all_cut_points'],
     'depth': 6,
 })
 
@@ -279,9 +287,8 @@ frame = gg.preview(rc, bit_size)
 gc = gg.cut_things(rc, 0)
 print(gc)
 
-# write to file
-open('./gcode/first_gear.nc', 'w').write(gc)
-
+# # write to file
+open('./gcode/gear.nc', 'w').write(gc)
 
 
 # --- TEST FUNCTIONS ---
@@ -330,7 +337,6 @@ def test_get_offset_lines():
 test_get_offset_lines()
 
 
-
 # steps
 # define dedendum circle as a list of line segments by number of teeth
 # define addendum circle as a list of line segments by number of teeth
@@ -339,9 +345,4 @@ test_get_offset_lines()
 # iteteratively cut calculate mid point on involute line, till required precision is reached
 # mirror involute
 # multiply and rotate
-
-# def scale_point(point, FRAME_SIZE, scale=2):
-#     center = (np.array(FRAME_SIZE) / 2).astype(int)
-#     return center - (np.array(point) * 2).astype(int)
-
 
