@@ -3,13 +3,12 @@ import math
 import numpy as np
 
 import cv2
+from numpy.core.fromnumeric import repeat
 from numpy.lib.arraysetops import isin
-
-import gcode_generator as gg
 
 # plot constants
 FRAME_SIZE = [750,750]
-PLOT_ORIGIN = [-100, 150] # (np.array(FRAME_SIZE) / -2 / SCALE).astype(int) 
+PLOT_ORIGIN = [-100, 150] 
 SCALE = 4
 
 ESC = 27
@@ -72,11 +71,15 @@ def deg_to_rad(deg):
     return deg * math.pi / 180.0
 
 
-def rotate(point, deg):
+def rad_to_deg(rad):
+    return rad / math.pi * 180.0
+
+
+def rotate(point, deg, reference=np.array([0,0])):
     rad = deg_to_rad(deg)
     R = np.array([[math.cos(rad), -math.sin(rad)],
                   [math.sin(rad), math.cos(rad)]])
-    return np.matmul(R, np.array(point))
+    return np.matmul(R, (np.array(point) - reference)) + reference
 
 
 def get_tangent_point(point, r):
@@ -164,6 +167,33 @@ def get_dedendum_circle(pitch_circle, module):
     return pitch_circle - 1.25 * module
 
 
+def mirror(points):
+    for p in points[::-1]:
+        points.append([p[0] * -1, p[1]])
+    return points
+
+
+def repeat(points, nr_reps):
+    repeat_points = []
+    for r in range(nr_reps):
+        rotate_deg = 360 / - nr_reps * r
+        for p in points:
+            repeat_points.append(rotate(p, rotate_deg))
+    return repeat_points
+
+
+def reverse_repeat_points(points, nr_reps):
+
+    for p in points[::-1]:
+        points.append([p[0] * -1, p[1]])
+    repeat_points = []
+    for r in range(nr_reps):
+        rotate_deg = 360 / - nr_reps * r
+        for p in points:
+            repeat_points.append(rotate(p, rotate_deg))
+    return repeat_points
+
+
 def get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size):
 
     cog = {}
@@ -200,30 +230,34 @@ def get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size):
     cog['single_points'] = points.copy()
 
     # add reverse points and repeat
-    # TODO: move this to separate function
-    for p in points[::-1]:
-        points.append([p[0] * -1, p[1]])
-    teeth_points = []
-    for r in range(nr_teeth):
-        rotate_deg = 360 / - nr_teeth * r
-        for p in points:
-            teeth_points.append(rotate(p, rotate_deg))
-    cog['teeth_points'] = teeth_points
+    cog['teeth_points'] = reverse_repeat_points(points, nr_teeth)
+
+    # # TODO: move this to separate function
+    # for p in points[::-1]:
+    #     points.append([p[0] * -1, p[1]])
+    # teeth_points = []
+    # for r in range(nr_teeth):
+    #     rotate_deg = 360 / - nr_teeth * r
+    #     for p in points:
+    #         teeth_points.append(rotate(p, rotate_deg))
+    # cog['teeth_points'] = teeth_points
 
     return cog
 
 
 def plot_cog(cog):
 
+    center = [0, 0]
+
     # create frame and draw origin
     frame = np.zeros([*FRAME_SIZE, 3], np.uint8)	
     cv2.circle(frame, point_to_plot(center), 5, red, 1)
 
     # draw circles
-    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['pitch_circle'])), red, 1)
-    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['addendum'])), blue, 1)
-    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['dedendum'])), blue, 1)
-    cv2.circle(frame, point_to_plot(center), int(scale_r(cog['base_circle'])), red, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog.get('pitch_circle', 0))), red, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog.get('addendum', 0))), blue, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog.get('dedendum', 0))), blue, 1)
+    cv2.circle(frame, point_to_plot(center), int(scale_r(cog.get('base_circle', 0))), red, 1)
 
     # display teeth
     for s, e in zip(cog['teeth_points'][0:-1], cog['teeth_points'][1:]):
@@ -235,6 +269,26 @@ def plot_cog(cog):
         for s, e in zip(all_cut_points[0:-1], all_cut_points[1:]):
             cv2.line(frame, point_to_plot(s), point_to_plot(e), blue)    
 
+    # display inner
+    if cog.get('inner', None) is not None:
+        for inner_set in cog['inner']:
+            for s, e in zip(inner_set[0:-1], inner_set[1:]):
+                cv2.line(frame, point_to_plot(s), point_to_plot(e), green)    
+
+    # display inner cut
+    if cog.get('inner_cut', None) is not None:
+        for inner_set in cog['inner_cut']:
+            for s, e in zip(inner_set[0:-1], inner_set[1:]):
+                cv2.line(frame, point_to_plot(s), point_to_plot(e), blue)    
+
+
+    return frame
+
+
+def plot_dict(frame, d):
+    for k, v in d.items():
+        for s, e in zip(v[0:-1], v[1:]):
+            cv2.line(frame, point_to_plot(s), point_to_plot(e), blue)    
     return frame
 
 
@@ -268,8 +322,8 @@ def cog_tool_path(cog, bit_size):
     for p in cut_points[::-1]:
         cut_points.append([p[0] * -1, p[1]])
     all_cut_points = []
-    for r in range(nr_teeth):
-        rotate_deg = 360 / - nr_teeth * r
+    for r in range(cog['nr_teeth']):
+        rotate_deg = 360 / - cog['nr_teeth'] * r
         for p in cut_points:
             all_cut_points.append(rotate(p, rotate_deg))
 
@@ -280,96 +334,46 @@ def cog_tool_path(cog, bit_size):
     return cog
 
 
-# settings
-nr_teeth = 15
-pitch_circle = 50
-pressure_angle_deg = 20 # degree
-center = [0, 0]
-bit_size = gg.inch(0.25)
+def pendulum_cog(circle, teeth_depth, nr_teeth, bit_size):
+    cog = {}
+    points = []
+    points.append(rotate([0, circle], 360/nr_teeth/2.0))
+    points.append([0, circle])
+    points.append([0, circle + teeth_depth])
+    points.append(rotate([0, circle], 360/nr_teeth/-2.0))
 
-# generate gear
-cog = get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size)
+    cog['nr_teeth'] = nr_teeth
+    cog['single_points'] = points
+    teeth_points = repeat(points, nr_teeth)
+    teeth_points.append(teeth_points[0])
+    cog['teeth_points'] = teeth_points
 
-# add tool path
-cog = cog_tool_path(cog, bit_size)
-
-# plot function to pass to interactive plot
-def plot_func():
-    return plot_cog(cog)
-
-# interactive plot
-interactive_plot(plot_func)
-
-
-# --- GENERATE GCODE ---
-
-
-rc = []
-rc.append({'type': 'circle', 'depth': 5,  'center': [0, 0], 'radius':  0})
-rc.append({'type': 'line', 'points': cog['all_cut_points'], 'depth': 6})
-
-# preview
-frame = gg.preview(rc, bit_size)
-
-# generate gcode
-gc = gg.cut_things(rc, 0)
-
-# write to file
-open('./gcode/gear.nc', 'w').write(gc)
+    # add tool path
+    cut_points = []
+    cut_points.append([bit_size / -2.0, circle])
+    cut_points.append([bit_size / -2.0, circle + teeth_depth + bit_size / 2.0])
+    cut_points.append([bit_size / 2.0, circle + teeth_depth + bit_size / 2.0])
+    all_cut_points = repeat(cut_points, nr_teeth)
+    all_cut_points.append(all_cut_points[0])
+    cog['all_cut_points'] = all_cut_points
+    
+    return cog
 
 
-# --- TEST FUNCTIONS ---
-
-
-def test_dist():
-    start = [0, 0]
-    end = [3, 4]
-    exp = 5
-    assert dist(start, end) == exp
-
-test_dist()
-
-def test_get_tangent_point():
-    point = [5, 3]
-    r = 2
-    [x1, y1], [x2, y2] = get_tangent_point(point, r)
-
-    assert all(np.array([x1, y1]).round(3) == np.array([1.5548045132, -1.2580075220]).round(3)), [x1, y1]
-    assert all(np.array([x2, y2]).round(3) == np.array([-0.3783339250, 1.9638898750]).round(3)), [x2, y2]
-
-test_get_tangent_point()
-
-def test_get_perpendicular_vec():
-    tc_list = [
-        ({'start': [0, 0], 'end': [1, 0], 'offset': 1}, ([0, 1], [0, -1])),
-        ({'start': [1, 1], 'end': [4, 5], 'offset': 1}, ([0.8, -0.6], [-0.8, 0.6])),
-        ({'start': [-1, 1], 'end': [0, 2], 'offset': 1}, ([-0.707, 0.707], [0.707, -0.707]))
-    ]
-    for tc in tc_list:
-        res = get_perpendicular_vec(**tc[0])
-        for e in res:
-            assert np.array(e).round(3).tolist() in tc[1], (e, tc[1])
-
-test_get_perpendicular_vec()
-
-def test_get_offset_lines():
-    tc_list = [
-        {'in': {'s': [0, 0], 'e': [1, 0], 'offset': 1}, 'exp': ([[0, 1], [1, 1]], [[0, -1], [1, -1]])}
-    ]
-    for tc in tc_list:
-        res = get_offset_lines(**tc['in'])
-        for e in tc['exp']:
-            assert e in res, (e, res) 
-
-test_get_offset_lines()
-
-
-# steps
-# define dedendum circle as a list of line segments by number of teeth
-# define addendum circle as a list of line segments by number of teeth
-# define straight line between point on the pitch circle and dedeundum circle
-# calculate the intersect between the addenbum and involute
-# iteteratively cut calculate mid point on involute line, till required precision is reached
-# mirror involute
-# multiply and rotate
-
+def inner_cuts(min_y, max_y, width, nr=3):
+    points = []
+    points.append([-width, max_y])
+    points.append([-width, min_y])
+    points.append(rotate([width, min_y], 360.0/nr))
+    points.append(rotate([width, max_y], 360.0/nr))
+    for deg in range(10):
+        new_point = rotate(rotate([width, max_y], 360.0/nr), deg*-10)
+        if new_point[0] < -width:
+            points.append(new_point)
+        else:
+            break
+    points.append(points[0])
+    points_list = []
+    for i in range(nr):
+        points_list.append([rotate(p, 360/nr * i) for p in points])
+    return points_list
