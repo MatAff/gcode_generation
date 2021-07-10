@@ -12,7 +12,7 @@ from cog_generation import (
 
 bit_size = gg.inch(0.25)
 
-# --- PENDULUM ---
+# --- PENDULUM COG ---
 
 # create pendulum cog
 pend_cog = pendulum_cog(51, 10, 25, bit_size)
@@ -40,11 +40,17 @@ pend_cog['inner_cut'] = inner_cuts(10 + bit_size/2.0, 40- bit_size/2.0, 10+ bit_
 # --- FORK ---
 
 from cog_generation import get_tangent_point, rotate
-from cog_generation import rad_to_deg, deg_to_rad
+from cog_generation import rad_to_deg
 from cog_generation import *
 
 import math
 import numpy as np
+
+def shift_point(start, end, dist):
+    delta = end - start
+    delta_dist = (delta ** 2).sum() ** 0.5
+    return start + delta * (dist / delta_dist)
+
 
 # def fork():
 circle = 51
@@ -56,6 +62,7 @@ deg_up, deg_down = 6, 4
 inner_up, inner_down = 6, 5
 
 rotation_point = [0, circle + teeth_depth + rotation_dy]
+pend_attach_point = [0, circle + teeth_depth + rotation_dy + 10]
 
 right, left = get_tangent_point(rotation_point, circle + teeth_depth)
 angle = rad_to_deg(math.atan(right[0]/right[1])) * 2
@@ -63,19 +70,43 @@ teeth_diff = int((angle - (360 / nr_teeth * 0.5)) / (360 / nr_teeth)) + 0.5
 print(teeth_diff)
 
 right_point = rotate([0, circle + teeth_depth], (360 / nr_teeth) * (teeth_diff / -2.0))
-deg_range = np.arange(deg_up, -deg_down - 1, -1)
-right_stop_face = [rotate(right_point, d, rotation_point) for d in deg_range]
-right_stop_face = [list(e) for e in right_stop_face]
+left_point = rotate([0, circle + teeth_depth], (360 / nr_teeth) * (teeth_diff / 2.0))
+right_inner_point = shift_point(right_point, rotation_point, 5)
+left_inner_point = shift_point(left_point, rotation_point, -5)
 
-inner_deg_range = np.arange(-inner_down, inner_up + 1)
-right_inner_face = [rotate(right_point, d, rotation_point) for d in inner_deg_range]
-right_inner_face = [list(e) for e in right_stop_face]
+right_stop_range = np.arange(deg_up + 10, -deg_down - 1, -1)
+right_stop_face = [list(rotate(right_point, d, rotation_point)) for d in right_stop_range]
 
+right_inner_range = np.arange(-inner_down, inner_up + 1)
+right_inner_face = [list(rotate(right_inner_point, d, rotation_point)) for d in right_inner_range]
+
+left_stop_range = np.arange(-deg_down, deg_up + 1)
+left_stop_face = [list(rotate(left_point, d, rotation_point)) for d in left_stop_range]
+
+left_inner_range = np.arange(inner_up, -inner_down - 10 - 1, -1)
+left_inner_face = [list(rotate(left_inner_point, d, rotation_point)) for d in left_inner_range]
+
+top = rotation_point + np.array([0, 20])
+top_right = rotate(top, -15)
+top_left = rotate(top, 15)
+bottom = rotation_point + np.array([0, -20])
+bottom_right = rotate(bottom, -20)
+bottom_left = rotate(bottom, 20)
+
+full = [top_left, top, top_right]
+full.extend(right_stop_face)
+full.extend(right_inner_face)
+full.extend([bottom_right, bottom, bottom_left])
+full.extend(left_stop_face)
+full.extend(left_inner_face)
+full.append(top_left)
 
 fork = {}
+fork['full'] = full
 fork['right_stop_face'] = right_stop_face
 fork['right_inner_face'] = right_inner_face
-
+fork['left_stop_face'] = left_stop_face
+fork['left_inner_face'] = left_inner_face
 
 def plot_func():
     frame = plot_cog(pend_cog)
@@ -83,17 +114,42 @@ def plot_func():
     return frame 
 interactive_plot(plot_func)
 
+tool_path = get_tool_path(fork['full'], bit_size / 2.0)
+
+fork['cut_points'] = tool_path
+
+def plot_func():
+    frame = plot_cog(pend_cog)
+    frame = plot_dict(frame, fork)
+    return frame 
+interactive_plot(plot_func)
+
+fork['rotation_point'] = rotation_point
+fork['pend_attach_point'] = pend_attach_point
+
+fork['cut_points'], dxy = gg.position_points(fork['cut_points'])
+fork['rotation_point'] = fork['rotation_point'] - np.array(dxy)
+fork['pend_attach_point'] = fork['pend_attach_point'] - np.array(dxy)
+
+# cut list
+rc = []
+rc.append({'type': 'circle', 'depth': 6,  'center': fork['rotation_point'], 'radius':  0})
+rc.append({'type': 'circle', 'depth': 6,  'center': fork['pend_attach_point'], 'radius':  0})
+rc.append({'type': 'line', 'points': fork['cut_points'], 'depth': 6})
+
+# preview, generate and save
+frame = gg.preview(rc, bit_size)
+gc = gg.cut_things(rc, 0)
+open('./gcode/fork.nc', 'w').write(gc)
+
+
+
+
+
+
+
+
 assert False
-
-
-left_impulse_face
-
-rotation
-
-right_point
-right_stop_face
-right_impulse_face
-
 
 
 

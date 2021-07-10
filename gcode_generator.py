@@ -185,6 +185,23 @@ def order_closest_point(list):
     return olist
 
 
+def position_points(points, where='zero'):
+    min_x = min([p[0] for p in points])
+    max_x = max([p[0] for p in points])
+    min_y = min([p[1] for p in points])
+    max_y = max([p[1] for p in points])
+
+    print(f'x: {min_x} - {max_x}, y: {min_y}, {max_y}')
+    print(f'size: {max_x - min_x}, {max_y - min_y}')
+
+    if where == 'zero':
+        dx, dy = min_x, min_y
+    if where == 'center':
+        dx, dy = (max_x - min_x) / 2.0, (max_y - min_y) / 2.0
+
+    return [[p[0] - dx, p[1] - dy] for p in points], [dx, dy]
+
+
 class Track(object):
 
     def __init__(self):

@@ -110,9 +110,9 @@ def get_perpendicular_vec(start, end, offset):
     dx = end[0] - start[0]
     dy = end [1] - start[1]
     if dy == 0:
-        return [0, 1], [0, -1]
+        return [0, offset], [0, -offset]
     elif dx == 0:
-        return [1, 0], [-1,  0]
+        return [offset, 0], [-offset,  0]
     else:
         ddx = 1
         ddy = -dx / dy
@@ -377,3 +377,66 @@ def inner_cuts(min_y, max_y, width, nr=3):
     for i in range(nr):
         points_list.append([rotate(p, 360/nr * i) for p in points])
     return points_list
+
+
+def arr(p):
+    if isinstance(p, np.ndarray):
+        return p
+    return np.array(p)
+    
+def get_perpendicular_vec_new(s, e, offset=None):
+    # TODO: deprecate the old version and consolidate
+    delta = arr(e) - arr(s)
+    delta_perp = np.array([-delta[1], delta[0]])
+    if offset is not None:
+        delta_perp = delta_perp / dist(s, e) * offset
+    return delta_perp
+
+def get_tool_path(points, offset):
+    
+    # get lines
+    lines = []
+    for s, e in zip(points[0:-1], points[1:]):
+        lines.append([s, e])
+    lines.append(lines[0])
+    lines.append(lines[1])
+
+    # get paralel lines: 
+    para_lines = []
+    for line in lines:
+        perp_vec = get_perpendicular_vec_new(*line, offset)
+        p_line = [line[0] + perp_vec, line[1] + perp_vec]
+        para_lines.append(p_line)
+
+    cut_points = [para_lines[0][0].tolist()]
+    i = 0
+    while i < len(para_lines):
+        print(i)
+        s = para_lines[i][0]
+        e = para_lines[i][1]
+
+        # compare to other lines
+        j = i + 1
+        closest_int = None
+        closest_int_dist = 999
+        closest_j = None
+        while j < len(para_lines):
+            if dist(e, para_lines[j][0]) < 10:
+                int = intersect(*para_lines[i], *para_lines[j]).tolist()[0]
+
+                # update int
+                int_dist = dist(s, int)
+                if int_dist < closest_int_dist:
+                    closest_int_dist = int_dist
+                    closest_int = int
+                    closest_j = j
+            else:
+                break
+            j = j + 1
+        
+        if closest_int is None:
+            break
+        cut_points.append(closest_int)
+        i = closest_j
+
+    return cut_points
