@@ -64,18 +64,22 @@ def interactive_plot(plot_func):
 
 
 def dist(start, end):
+    # TODO: switch to using geometry.py
     return ((np.array(start) - np.array(end)) ** 2).sum()**0.5
 
 
 def deg_to_rad(deg):
+    # TODO: switch to using geometry.py
     return deg * math.pi / 180.0
 
 
 def rad_to_deg(rad):
+    # TODO: switch to using geometry.py
     return rad / math.pi * 180.0
 
 
 def rotate(point, deg, reference=np.array([0,0])):
+    # TODO: switch to using geometry.py
     rad = deg_to_rad(deg)
     R = np.array([[math.cos(rad), -math.sin(rad)],
                   [math.sin(rad), math.cos(rad)]])
@@ -231,16 +235,6 @@ def get_gear(pitch_circle, nr_teeth, pressure_angle_deg, bit_size):
 
     # add reverse points and repeat
     cog['teeth_points'] = reverse_repeat_points(points, nr_teeth)
-
-    # # TODO: move this to separate function
-    # for p in points[::-1]:
-    #     points.append([p[0] * -1, p[1]])
-    # teeth_points = []
-    # for r in range(nr_teeth):
-    #     rotate_deg = 360 / - nr_teeth * r
-    #     for p in points:
-    #         teeth_points.append(rotate(p, rotate_deg))
-    # cog['teeth_points'] = teeth_points
 
     return cog
 
