@@ -47,3 +47,7 @@ def ellipse_points(height, width):
 def scale_min_max(x, in_range, out_range):
     n = (x - in_range[0])/(in_range[1] - in_range[0])
     return n * (out_range[1] - out_range[0]) + out_range[0]
+
+
+def shift(point_list, delta):
+    return [[pp + dd for pp, dd in zip(p, delta)] for p in point_list]

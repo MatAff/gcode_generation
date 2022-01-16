@@ -484,7 +484,8 @@ def interactive_plot(plot_func):
 def parse_g1(g1):
     """Returns coordinates from g1 line
 
-    Tested"""
+    Tested
+    """
     point_dict = {}
     for part in g1.split(" "):
         for coordinate in ("X", "Y", "Z"):
@@ -496,7 +497,7 @@ def parse_g1(g1):
 def preview_gcode(gc):
     """Returns frame with gcode preview
 
-    Execution tested
+    Tested
     """
 
     center = [0, 0]

@@ -1,5 +1,5 @@
 import support.gcode_generator as gg
-from support.geometry import ellipse_points, scale_min_max
+from support.geometry import ellipse_points, scale_min_max, shift
 
 # settings
 bit_size = gg.inch(0.25)
@@ -32,12 +32,46 @@ points = [[p[0], p[1], scale_min_max(p[2], (0, 90), depth_range)] for p in point
 rc = []
 rc.append({'type': 'line3', 'points': points})
 
-# preview, generate, save
-# frame = gg.preview(rc, bit_size)
-gc = gg.cut_things(rc, 0)
-print(gc)
+# --- a ---
 
-# interactive plot
+depth = 2
+depth_range = (0.5, depth)
+
+lower = ellipse_points(10, 10)
+lower = [[p[0], p[1], scale_min_max(p[2], (0, 90), depth_range)] for p in lower]
+
+upper = ellipse_points(10, 10)
+upper = [[p[0], p[1], scale_min_max(p[2], (0, 90), depth_range)] for p in upper]
+upper = [p for p in upper if p[1] > 0]
+upper = shift(upper, [0, 20, 0])
+
+rc = []
+rc.append({'type': 'line3', 'points': lower})
+rc.append({'type': 'line3', 'points': upper})
+rc.append({'type': 'line', 'points': [[10, -10 + depth], [10, 20 - depth]], "depth": depth})
+rc.append({'type': 'line3', 'points': gg.get_fonty_points([10, -10], 0, depth)})
+
+# --- b ---
+
+depth = 2
+depth_range = (0.5, depth)
+
+lower = ellipse_points(10, 10)
+lower = [[p[0], p[1], scale_min_max(p[2], (0, 90), depth_range)] for p in lower]
+
+rc = []
+rc.append({'type': 'line3', 'points': lower})
+rc.append({'type': 'line', 'points': [[-10, -10 + depth], [-10, 30 - depth]], "depth": depth})
+rc.append({'type': 'line3', 'points': gg.get_fonty_points([-10, -10], 0, depth)})
+rc.append({'type': 'line3', 'points': gg.get_fonty_points([-10, 30], 180, depth)})
+
+# --- c ---
+
+# --- preview ---
+
+# preview, generate, save
+gc = gg.cut_things(rc, 0)
+
 def plot_func():
     return gg.preview_gcode(gc)
 gg.interactive_plot(plot_func)
