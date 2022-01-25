@@ -8,6 +8,7 @@ from support.geometry import dist, shift
 
 
 class Clicker():
+    """Intermediate class to capture clicks from events"""
 
     click_list = []
 
@@ -31,6 +32,7 @@ class Clicker():
 
 
 def image_lines(path_image, scale):
+    """Shows image and returns clicked points"""
 
     # Make global (for update within callback)
     global img
@@ -59,6 +61,10 @@ def image_lines(path_image, scale):
 
 
 def separate_clicks(click_list):
+    """Return list split by right clicks
+
+    Potential for simplification
+    """
     list_list = []
 
     current_list = []
@@ -78,6 +84,7 @@ def separate_clicks(click_list):
 
 
 def process_depth(point_list, square_ends=True):
+    """Converts point pair to 3d points"""
     depth_list = []
     for s, e in zip(point_list[::2], point_list[1::2]):
         x = (s[0] + e[0]) / 2
@@ -92,6 +99,7 @@ def process_depth(point_list, square_ends=True):
 
 
 def create_square_ends(depth_list, point_list, do_other_end=True):
+    """Add a square ends to lines"""
     last_point = depth_list[-1]
     second_point = depth_list[-2]
     width = dist(point_list[-1], point_list[-2]) / 2
@@ -112,6 +120,7 @@ def create_square_ends(depth_list, point_list, do_other_end=True):
 
 
 def get_current_size(depth_list):
+    """Return x and y range used"""
     min_x, max_x, min_y, max_y = 10**5, 0, 10**5, 0
     for d_list in depth_list:
         for p in d_list:
@@ -123,6 +132,10 @@ def get_current_size(depth_list):
 
 
 def scale_list(depth_list, min_x, min_y, scale):
+    """Returns scaled and shifted list
+
+    Potential to use geometry support module
+    """
     scaled_list = []
     for d_list in depth_list:
         s_list = []
@@ -137,6 +150,7 @@ def scale_list(depth_list, min_x, min_y, scale):
 
 
 def click_letter(letter):
+    """Shows image and processes and saves points"""
 
     img_scale = 4
     target_y = 30
@@ -153,9 +167,6 @@ def click_letter(letter):
 
     # Process
     separate_list = separate_clicks(click_list)
-
-    # Debug
-    point_list = separate_list[0]
 
     # Convert to depth
     depth_list = [process_depth(l) for l in separate_list]
@@ -196,4 +207,4 @@ if __name__=="__main__":
     gg.interactive_plot(plot_func)
 
     # Save to file
-    # open(f'./gcode/test_letters_{letter}.nc', 'w').write(gc)
+    open(f'./gcode/test_letters_{letter}.nc', 'w').write(gc)
