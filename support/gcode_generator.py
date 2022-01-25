@@ -10,11 +10,42 @@ import math
 import numpy as np
 
 from support.cog_generation import rotate
+from support.geometry import dist
+
+
+import math
+import numpy as np
+
+
+import cv2
+from numpy.core.fromnumeric import repeat
+from numpy.lib.arraysetops import isin
+
+# plot constants
+FRAME_SIZE = [750,750]
+PLOT_ORIGIN = [-100, 150]
+SCALE = 4
+
+ESC = 27
+LEFT = 81
+UP = 82
+RIGHT = 83
+DOWN = 84
+MIN = 45
+PLUS = 61
+
+red = (0, 0, 255)
+blue = (255, 0, 0)
+green = (0, 255, 0)
+
+
 
 # G21 - Millimeters
 # G90 - Absolute distance mode
 # G91 - Incremental distance mode
 # M30 - Stop program
+
+
 
 FILE_START = """
 G21
@@ -404,43 +435,7 @@ def cut_things(cut_list, depth):
     return gc
 
 
-import math
-import numpy as np
-
-
-def test_get_fonty_points():
-
-    points = get_fonty_points([0, 0], 0, 2)
-    assert points == [[-4.0, 0.0, 0], [0.0, 2.0, 2], [4.0, 0.0, 0]]
-
-
-if __name__ == "__main__":
-
-    test_get_fonty_points()
-
 # --- GCODE PREVIEW ---
-
-import cv2
-from numpy.core.fromnumeric import repeat
-from numpy.lib.arraysetops import isin
-
-# plot constants
-FRAME_SIZE = [750,750]
-PLOT_ORIGIN = [-100, 150]
-SCALE = 4
-
-ESC = 27
-LEFT = 81
-UP = 82
-RIGHT = 83
-DOWN = 84
-MIN = 45
-PLUS = 61
-
-red = (0, 0, 255)
-blue = (255, 0, 0)
-green = (0, 255, 0)
-
 
 def point_to_plot(point):
     return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(int)
@@ -519,12 +514,27 @@ def preview_gcode(gc):
             new_position = [xx, yy]
             if position != new_position:
                 color = blue if z > 0 else red
-                if z < 0:
-                    cv2.circle(frame, point_to_plot(position), int(scale_r(abs(z))), color, 1)
+                if z <= 0:
+                    # cv2.circle(frame, point_to_plot(position), int(scale_r(abs(z))), color, 1)
+                    preview_line(
+                        frame,
+                        [*point_to_plot(position), depth],
+                        [*point_to_plot(new_position), z],
+                    )
                 cv2.line(frame, point_to_plot(position), point_to_plot(new_position), color)
             position = new_position
+            depth = z
 
     return frame
+
+def preview_line(frame, start, end):
+    length = dist(start, end)
+    for i in range(int(length)):
+        x = int((end[0] - start[0]) * i / length + start[0])
+        y = int((end[1] - start[1]) * i / length + start[1])
+        z = int((end[2] - start[2]) * i / length + start[2])
+        cv2.circle(frame, (x, y), int(scale_r(-z)), red, 1)
+
 
 
 def test_preview_gcode():
@@ -553,3 +563,16 @@ def test_parse_g1():
 if __name__ == "__main__":
     test_parse_g1()
     test_preview_gcode()
+
+
+
+def test_get_fonty_points():
+
+    points = get_fonty_points([0, 0], 0, 2)
+    assert points == [[-4.0, 0.0, 0], [0.0, 2.0, 2], [4.0, 0.0, 0]]
+
+
+if __name__ == "__main__":
+
+    test_get_fonty_points()
+
