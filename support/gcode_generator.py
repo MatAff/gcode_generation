@@ -1,25 +1,11 @@
-
-# TODO: intergrate gcode generation and preview
-# TODO: enable xyz lines rather than just xy lines
-import sys
-sys.path.append("..")
+import sys; sys.path.append("..")
 
 import cv2
-from itertools import product
 import math
 import numpy as np
 
 from support.cog_generation import rotate
 from support.geometry import dist
-
-
-import math
-import numpy as np
-
-
-import cv2
-from numpy.core.fromnumeric import repeat
-from numpy.lib.arraysetops import isin
 
 # plot constants
 FRAME_SIZE = [750,750]
@@ -34,18 +20,14 @@ DOWN = 84
 MIN = 45
 PLUS = 61
 
-red = (0, 0, 255)
-blue = (255, 0, 0)
-green = (0, 255, 0)
-
-
+RED = (0, 0, 255)
+BLUE = (255, 0, 0)
+GREEN = (0, 255, 0)
 
 # G21 - Millimeters
 # G90 - Absolute distance mode
 # G91 - Incremental distance mode
 # M30 - Stop program
-
-
 
 FILE_START = """
 G21
@@ -63,10 +45,12 @@ clear_height = 5.0
 
 
 def inch(i):
+    """Returns size in mm"""
     return i * 25.4
 
 
 def sets_sets(**kwargs):
+    """Return sets of points"""
     ox = kwargs.get('outer_offset_x', 0.0)
     oy = kwargs.get('outer_offset_y', 0.0)
     sx = kwargs.get('outer_spacing_x', 0.0)
@@ -84,6 +68,7 @@ def sets_sets(**kwargs):
 
 
 def hole_sets(**kwargs):
+    """Returns hole sets"""
     elements = []
     for x in range(kwargs.get('nr_sets_x', 2)):
         for y in range(kwargs.get('nr_sets_y', 2)):
@@ -106,6 +91,7 @@ def hole_sets(**kwargs):
 
 
 def even_spaced(**kwargs):
+    """Return evenly spaced points"""
     elements = []
     for i in range(kwargs.get('start', 0), kwargs['nr']):
         dx = (kwargs['x_end'] - kwargs['x_start']) / (kwargs['nr'] - 1)
@@ -119,7 +105,7 @@ def even_spaced(**kwargs):
 
 
 def create_elements(**kwargs):
-
+    """Master function to create different point configurations"""
     if kwargs['type'] == 'even_spaced':
         return even_spaced(**kwargs)
     elif kwargs['type'] == 'hole_sets':
@@ -131,6 +117,9 @@ def create_elements(**kwargs):
 
 
 def preview(lines_list, bit_size, frame=None):
+    """Legacy preview function
+
+    Current methods involved generating preview from gcode"""
 
     margin = 10
     position = [0, 0]
@@ -205,10 +194,12 @@ def preview(lines_list, bit_size, frame=None):
 
 
 def calc_dist(source, target):
+    """Returns distance based on first two values in points"""
     return ((source[0] - target[0])**2 + (source[1] - target[1])**2)**0.5
 
 
 def order_closest_point(list):
+    """Returns optimized point order"""
 
     position = [0, 0]
     olist = []
@@ -224,6 +215,7 @@ def order_closest_point(list):
 
 
 def position_points(points, where='zero'):
+    """Returns positioned points"""
     min_x = min([p[0] for p in points])
     max_x = max([p[0] for p in points])
     min_y = min([p[1] for p in points])
@@ -241,6 +233,7 @@ def position_points(points, where='zero'):
 
 
 class Track(object):
+    """Class to track mill travel distance"""
 
     def __init__(self):
         self.distance = 0
@@ -256,18 +249,8 @@ class Track(object):
         self.distance += 2 * 3.14159 * r
 
 
-def lift_and_move(gc, point, track):
-    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n" # lift
-    gc += f"G1 X{point[0]} Y{point[1]} F{rapid_feedrate} \n" # move
-    track.track(*point)
-    return gc
-
-
-def get_sub_depths(depth, step):
-    return [min ((i + 1) * step, depth)  for i in range(math.ceil(depth / step))]
-
-
 def get_fonty_points(position, deg, depth):
+    """Create serif on text"""
     width = 4 * depth
     points = [
         [*list(position + rotate(np.array([-width / 2, 0]), deg).round(4)), 0],
@@ -276,14 +259,22 @@ def get_fonty_points(position, deg, depth):
     ]
     return points
 
-# TODO: fix function above
-position = [0, 0]
-deg = 0
-depth = 3
 
-get_fonty_points(position, deg, depth)
+def get_sub_depths(depth, step):
+    """Returns a list of depths to cut at"""
+    return [min ((i + 1) * step, depth)  for i in range(math.ceil(depth / step))]
+
+
+def lift_and_move(gc, point, track):
+    """Returns gcode to move to a new location"""
+    gc += f"G1 Z{clear_height} F{plunge_feedrate} \n" # lift
+    gc += f"G1 X{point[0]} Y{point[1]} F{rapid_feedrate} \n" # move
+    track.track(*point)
+    return gc
+
 
 def cut_things(cut_list, depth):
+    """Return gcode from cut list"""
 
     gc = FILE_START
 
@@ -438,14 +429,17 @@ def cut_things(cut_list, depth):
 # --- GCODE PREVIEW ---
 
 def point_to_plot(point):
+    """Returns location in frame"""
     return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(int)
 
 
 def scale_r(r):
+    """Scales size to frame"""
     return r * SCALE
 
 
 def interactive_plot(plot_func):
+    """Displays interactive plot based on plot function"""
 
     global PLOT_ORIGIN
     global SCALE
@@ -456,7 +450,7 @@ def interactive_plot(plot_func):
         frame = plot_func()
         cv2.imshow('image', frame)
         key = cv2.waitKey(0)
-        print(key)
+        # print(key)
 
         if key == ESC:
             running=False
@@ -501,7 +495,7 @@ def preview_gcode(gc):
 
     # create frame and draw origin
     frame = np.zeros([*FRAME_SIZE, 3], np.uint8)
-    cv2.circle(frame, point_to_plot(center), 5, red, 1)
+    cv2.circle(frame, point_to_plot(center), 5, RED, 1)
 
     for line in gc.split("\n"):
         if line.startswith("G1"):
@@ -513,7 +507,7 @@ def preview_gcode(gc):
             z = zz
             new_position = [xx, yy]
             if position != new_position:
-                color = blue if z > 0 else red
+                color = BLUE if z > 0 else RED
                 if z <= 0:
                     # cv2.circle(frame, point_to_plot(position), int(scale_r(abs(z))), color, 1)
                     preview_line(
@@ -528,13 +522,16 @@ def preview_gcode(gc):
     return frame
 
 def preview_line(frame, start, end):
+    """Plots line using circle to indicate depth"""
     length = dist(start, end)
     for i in range(int(length)):
         x = int((end[0] - start[0]) * i / length + start[0])
         y = int((end[1] - start[1]) * i / length + start[1])
         z = int((end[2] - start[2]) * i / length + start[2])
-        cv2.circle(frame, (x, y), int(scale_r(-z)), red, 1)
+        cv2.circle(frame, (x, y), int(scale_r(-z)), RED, 1)
 
+
+# --- TESTS ---
 
 
 def test_preview_gcode():
@@ -560,9 +557,11 @@ def test_parse_g1():
     assert point_dict == {"X": 10.0, "Y": 0.0, "Z": -0.5}
 
 
-if __name__ == "__main__":
-    test_parse_g1()
-    test_preview_gcode()
+
+def test_get_sub_depths():
+    expected = [3, 6, 9, 10]
+    res = get_sub_depths(10, 3)
+    assert res == expected
 
 
 
@@ -571,8 +570,8 @@ def test_get_fonty_points():
     points = get_fonty_points([0, 0], 0, 2)
     assert points == [[-4.0, 0.0, 0], [0.0, 2.0, 2], [4.0, 0.0, 0]]
 
-
 if __name__ == "__main__":
-
+    test_parse_g1()
+    test_preview_gcode()
     test_get_fonty_points()
 

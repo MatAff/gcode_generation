@@ -149,7 +149,7 @@ def scale_list(depth_list, min_x, min_y, scale):
     return scaled_list
 
 
-def click_letter(letter):
+def click_letter(letter, load=True):
     """Shows image and processes and saves points"""
 
     img_scale = 4
@@ -159,11 +159,18 @@ def click_letter(letter):
     path_clicks = f"./font/{letter}_clicks.json"
     path_save = f"./font/{letter}.json"
 
-    # Get list of clicks
-    click_list = image_lines(path_image, img_scale)
+    if load and os.path.exists(path_clicks):
+        print("Loading previous clicks")
+        click_list = json.load(open(path_clicks, 'r'))
+    else:
+        # Get list of clicks
+        click_list = image_lines(path_image, img_scale)
 
     # Save original clicks
     json.dump({"clicks": click_list}, open(path_clicks, 'w'))
+
+    # Flip
+    click_list = [[p[0], -p[1], p[2]] for p in click_list]
 
     # Process
     separate_list = separate_clicks(click_list)
@@ -182,7 +189,7 @@ def click_letter(letter):
 
 if __name__=="__main__":
 
-    letter = "B"
+    letter = "C"
 
     # Click letter
     click_letter(letter)
@@ -202,6 +209,7 @@ if __name__=="__main__":
     print(gc)
 
     # Preview
+    # TODO: ensure that preview uses x y consistent with machine
     def plot_func():
         return gg.preview_gcode(gc)
     gg.interactive_plot(plot_func)
