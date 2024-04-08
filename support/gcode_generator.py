@@ -7,6 +7,19 @@ import numpy as np
 from support.cog_generation import rotate
 from support.geometry import dist
 
+# EXAMPLE USAGE
+
+# bit_size = gg.inch(0.25)
+
+# rc = []
+# rc.append({'type': 'circle', 'depth': 5,  'center': [0, 0], 'radius':  0})
+# rc.append({'type': 'line', 'points': cog['all_cut_points'], 'depth': 6})
+
+# # preview, generate, save
+# frame = gg.preview(rc, bit_size)
+# gc = gg.cut_things(rc, 0)
+# open('./gcode/gear_8.nc', 'w').write(gc)
+
 # plot constants
 FRAME_SIZE = [750,750]
 PLOT_ORIGIN = [-100, 150]
@@ -38,10 +51,14 @@ FILE_END = "M30"
 
 plunge_feedrate = 250
 rapid_feedrate = 8000
-cut_feedrate = 900
+CUT_FEEDRATE = 900
 drill_depth = 3.3
-cut_depth = 2.2
+CUT_DEPTH = 2.2
 clear_height = 5.0
+
+
+def rint(val):
+    return int(np.round(val, 0))
 
 
 def inch(i):
@@ -126,7 +143,7 @@ def preview(lines_list, bit_size, frame=None):
     factor = 2
 
     def disp(l):
-        return tuple([int(e) * factor + margin for e in l])
+        return tuple([rint(e) * factor + margin for e in l])
 
     def draw_lines(line, position, bit_size=bit_size):
 
@@ -142,7 +159,7 @@ def preview(lines_list, bit_size, frame=None):
             position = point
 
             # draw point
-            cv2.circle(frame, disp(point), int(bit_size / 2) * factor, (0, 0, 255), 1)
+            cv2.circle(frame, disp(point), rint(bit_size / 2) * factor, (0, 0, 255), 1)
 
             # draw line
             if ind != 0:
@@ -160,7 +177,7 @@ def preview(lines_list, bit_size, frame=None):
 
     # create display
     if frame is None:
-        frame = np.zeros((int((max_y * factor) + (2 * margin)), int((max_x *factor) + (2 * margin)), 3), np.uint8)
+        frame = np.zeros((rint((max_y * factor) + (2 * margin)), rint((max_x *factor) + (2 * margin)), 3), np.uint8)
 
     # draw origin
     cv2.line(frame,(0, 10), (20, 10), (255, 0, 0), 1)
@@ -273,8 +290,14 @@ def lift_and_move(gc, point, track):
     return gc
 
 
-def cut_things(cut_list, depth):
+def cut_things(cut_list, depth, cut_depth=None, cut_feedrate=None):
     """Return gcode from cut list"""
+
+    if cut_depth is None:
+        cut_depth = CUT_DEPTH
+
+    if cut_feedrate is None:
+        cut_feedrate = CUT_FEEDRATE
 
     gc = FILE_START
 
@@ -430,7 +453,7 @@ def cut_things(cut_list, depth):
 
 def point_to_plot(point):
     """Returns location in frame"""
-    return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(int)
+    return (np.array([-PLOT_ORIGIN[0] + point[0], PLOT_ORIGIN[1] - point[1]]) * SCALE).astype(rint)
 
 
 def scale_r(r):
@@ -509,7 +532,7 @@ def preview_gcode(gc):
             if position != new_position:
                 color = BLUE if z > 0 else RED
                 if z <= 0:
-                    # cv2.circle(frame, point_to_plot(position), int(scale_r(abs(z))), color, 1)
+                    # cv2.circle(frame, point_to_plot(position), rint(scale_r(abs(z))), color, 1)
                     preview_line(
                         frame,
                         [*point_to_plot(position), depth],
@@ -524,11 +547,11 @@ def preview_gcode(gc):
 def preview_line(frame, start, end):
     """Plots line using circle to indicate depth"""
     length = dist(start, end)
-    for i in range(int(length)):
-        x = int((end[0] - start[0]) * i / length + start[0])
-        y = int((end[1] - start[1]) * i / length + start[1])
-        z = int((end[2] - start[2]) * i / length + start[2])
-        cv2.circle(frame, (x, y), int(scale_r(-z)), RED, 1)
+    for i in range(rint(length)):
+        x = rint((end[0] - start[0]) * i / length + start[0])
+        y = rint((end[1] - start[1]) * i / length + start[1])
+        z = rint((end[2] - start[2]) * i / length + start[2])
+        cv2.circle(frame, (x, y), rint(scale_r(-z)), RED, 1)
 
 
 # --- TESTS ---

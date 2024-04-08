@@ -1,6 +1,22 @@
 import math
 import numpy as np
 
+def flip_x_and_y(points):
+    return [[y, x] for x, y in points]
+
+
+def round_points(points, digit=5):
+    return [[np.round(x, digit), np.round(y, digit)] for x, y in points]
+
+
+def deg_to_shift(deg, dist, start=None):
+    if start is None:
+        start = [0, 0]
+    return [
+        start[0] + np.cos(deg_to_rad(deg)) * dist,
+        start[1] + np.sin(deg_to_rad(deg)) * dist,
+    ]
+
 
 def dist(start, end):
     return ((np.array(start) - np.array(end)) ** 2).sum()**0.5
