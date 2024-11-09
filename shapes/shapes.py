@@ -1,22 +1,34 @@
-# Use python3.10 for using open3d
-# Install open3d
-# ! python3 -m pip install open3d
-# ! python3 -m pip install drawsvg
 
-# TODO: Have the rip teeth face each other to save space
-# TODO: Allow for missing panels in general
-# TODO: Don't add teeth if not facing another surface
-# TODO: Add padding such that corners are snug
-# TODO: Fix ends
+"""Generate ribs for 3d objects
 
-import sys
-sys.path.append('..')
+This code takes a filepath to an object file and produces a svg to cut ribs to 
+create the shape
+
+The package open3d only supports up to python3.10, might use trimesh instead
+
+Install on Linux
+! python3 -m pip install open3d
+! python3 -m pip install drawsvg
+Install on Windows
+! py -m pip install open3d
+! py -m pip install drawsvg
+! py -m pip install trimesh
+
+TODO: Have the rip teeth face each other to save space
+TODO: Allow for missing panels in general
+TODO: Don't add teeth if not facing another surface
+TODO: Add padding such that corners are snug
+TODO: Fix ends
+"""
+
+import sys; sys.path.append('..')
 
 import drawsvg as svg
-import math
 import numpy as np
-import open3d as o3d
+# import open3d as o3d
 import os
+import trimesh
+
 from support.geometry import (
     dist, rad_to_deg, deg_to_rad, points_to_line, compute_deg_between_lines
 )
@@ -25,18 +37,21 @@ from support.geometry import (
 filepath = './shapes/tower.obj'
 out_path = './svg/' + os.path.basename(filepath).replace('.obj', '.svg')
 material_thickness = 3  # mm
-width = 10  # Edge width
+width = 10  # Edge width in mm
 
 # Load from file
-mesh = o3d.io.read_triangle_mesh(filepath)
-mesh.compute_vertex_normals()
+# mesh = o3d.io.read_triangle_mesh(filepath)
+mesh = trimesh.load(filepath)
+# mesh.compute_vertex_normals()
 
 # Visualize it
-vis = o3d.visualization.Visualizer()
-vis.create_window()
-vis.add_geometry(mesh)
-vis.run()
-vis.destroy_window()
+mesh.show()
+
+# vis = o3d.visualization.Visualizer()
+# vis.create_window()
+# vis.add_geometry(mesh)
+# vis.run()
+# vis.destroy_window()
 
 def load_file(filepath):
   """Helper function to read text."""
