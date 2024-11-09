@@ -30,6 +30,16 @@ def rad_to_deg(rad):
     return rad / math.pi * 180.0
 
 
+def points_to_line(s, e):
+  return [ee - ss for ss, ee in zip(s, e)]
+
+
+def compute_deg_between_lines(s, e):
+  # TODO: Move to support
+  rad = np.arccos(np.dot(s, e) / (np.linalg.norm(s)*np.linalg.norm(e)))
+  return rad_to_deg(rad)
+
+
 def rotate(point, deg, reference=np.array([0,0])):
     rad = deg_to_rad(deg)
     R = np.array([[math.cos(rad), -math.sin(rad)],
