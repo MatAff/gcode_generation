@@ -4,13 +4,11 @@
 This code takes a filepath to an object file and produces a svg to cut ribs to 
 create the shape
 
-The package open3d only supports up to python3.10, might use trimesh instead
+This previously used open3d which was only supports up to python3.10.
 
 Install on Linux
-! python3 -m pip install open3d
 ! python3 -m pip install drawsvg
 Install on Windows
-! py -m pip install open3d
 ! py -m pip install drawsvg
 ! py -m pip install trimesh
 
@@ -19,6 +17,7 @@ TODO: Allow for missing panels in general
 TODO: Don't add teeth if not facing another surface
 TODO: Add padding such that corners are snug
 TODO: Fix ends
+TODO: Add part markings
 """
 
 import sys; sys.path.append('..')
@@ -28,92 +27,39 @@ import numpy as np
 # import open3d as o3d
 import os
 import trimesh
+from collections import Counter
 
 from support.geometry import (
-    dist, rad_to_deg, deg_to_rad, points_to_line, compute_deg_between_lines
+    dist,
+    deg_to_rad,
+    points_to_line,
+    compute_deg_between_lines,
+    compute_surface_normal,
+    shift_list,
+    flatten_pair_list,
+    rotate_list,
+    min_list,
 )
 
 # Settings
-filepath = './shapes/tower.obj'
+filepath = './shapes/blender_cube.obj'
 out_path = './svg/' + os.path.basename(filepath).replace('.obj', '.svg')
 material_thickness = 3  # mm
 width = 10  # Edge width in mm
 
-# Load from file
-# mesh = o3d.io.read_triangle_mesh(filepath)
-mesh = trimesh.load(filepath)
-# mesh.compute_vertex_normals()
+def visualize(filepath):
+  mesh = trimesh.load(filepath)
+  return mesh.show()
 
-# Visualize it
-mesh.show()
-
-# vis = o3d.visualization.Visualizer()
-# vis.create_window()
-# vis.add_geometry(mesh)
-# vis.run()
-# vis.destroy_window()
-
-def load_file(filepath):
-  """Helper function to read text."""
-  with open(filepath) as f:
-    content = f.readlines()
-  return content
-
-def get_vertices(content):
-  """Custom function to get vertices."""
-  vertices = [[]]  # Include one bogus points as surface index starts at 1.
-  for line in content:
-    if line.startswith('v'):
-      try:
-        print(line.strip().split(' '))
-        point = [int(p) for p in line.strip().split(' ')[1:] if p != '']
-        assert len(point) == 3, f'Could not parse: {line}'
-        vertices.append(point)
-      except Exception as e:
-        print(line)
-        raise e
-  return vertices
-
-def get_surfaces(content):
-  """Custom function to get surfaces."""
-  surfaces = []
-  for line in content:
-    if line.startswith('f'):
-      try:
-        points = [int(p) for p in line.strip().split(' ')[1:] if p != '']
-        assert len(points) >=3, f'Did not find at least 3 points in: {line}'
-        surfaces.append(points)
-      except Exception as e:
-        print(line)
-        raise e
-  return surfaces
-
-
-
-def compute_surface_normal(p0, p1, p2):
-  # TODO: Move to support
-  v01 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]]
-  v02 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]]
-  return [
-      v01[1] * v02[2] - v01[2] * v02[1],
-      v01[2] * v02[0] - v01[0] * v02[2],
-      v01[0] * v02[1] - v01[1] * v02[0],
-  ]
-
-def compute_deg_between_lines(l0, l1):
-  # TODO: Move to support
-  rad = np.arccos(np.dot(l0, l1) / (np.linalg.norm(l0)*np.linalg.norm(l1)))
-  return rad_to_deg(rad)
-
-def compute_edge_deg(s, e, surfaces, vertices):
+def compute_edge_deg(s, e, faces, vertices):
+  """Finds both faces on the edge and computes the angle between them"""
   normals = []
-  for surface in surfaces:
-    if s in surface and e in surface:
-      normals.append(compute_surface_normal(*[vertices[v] for v in surface[0:3]]))
+  for face in faces:
+    if s in face and e in face:
+      normals.append(compute_surface_normal(*[vertices[v] for v in face[0:3]]))
   assert len(normals) == 2
   return compute_deg_between_lines(
-    normals[0],
-    [normals[1][0] * -1, normals[1][1] * -1, normals[1][2] * -1,]
+    normals[0], [normals[1][0] * -1, normals[1][1] * -1, normals[1][2] * -1,]
   )
 
 # def compute_teeth_depth(edge_deg):
@@ -135,40 +81,37 @@ def compute_teeth_up_down(angle, thickness):
        'teeth_down': teeth_down,
     }
 
-def create_part(surface, surfaces, vertices):
-  surface_parts = []
-  for s, e in zip(surface, [*surface[1:], surface[0]]):
-    part = {}
-    part['surface'] = '-'.join([str(v) for v in surface])
-    part['edge'] = f'{str(s)}-{str(e)}'
-    print(s, e)
-    part['length'] = dist(vertices[s], vertices[e])
-    previous_vertex = surface[surface.index(s) - 1]
-    part['start_angle'] = compute_deg_between_lines(
+def create_part_spec(s, e, face, faces, vertices):
+  previous_vertex = face[face.index(s) - 1]
+  next_vertex = face[(face.index(e) + 1) % len(face)]
+  edge_deg = compute_edge_deg(s, e, faces, vertices)
+  teeth_up_down = compute_teeth_up_down(edge_deg, material_thickness)
+  return {
+    'face': '-'.join([str(v) for v in face]),
+    'edge': f'{str(s)}-{str(e)}',
+    'edge_common': f'{str(min(s, e))}-{str(max(s, e))}',
+    'length': dist(vertices[s], vertices[e]),
+    'start_angle': compute_deg_between_lines(
       points_to_line(vertices[previous_vertex], vertices[s]),
-      points_to_line(vertices[e], vertices[s])
-    )
-    next_vertex = surface[(surface.index(e) + 1) % len(surface)]
-    part['end_angle'] = compute_deg_between_lines(
+      points_to_line(vertices[e], vertices[s])),
+    'end_angle': compute_deg_between_lines(
       points_to_line(vertices[e], vertices[s]),
-      points_to_line(vertices[e], vertices[next_vertex])
-    )
-    part['edge_deg'] = compute_edge_deg(s, e, surfaces, vertices)
-    teeth_up_down = compute_teeth_up_down(part['edge_deg'], material_thickness)
-    part['teeth_up'] = teeth_up_down['teeth_up']
-    part['teeth_down'] = teeth_up_down['teeth_down']
-    surface_parts.append(part)
-  return surface_parts
+      points_to_line(vertices[e], vertices[next_vertex])),
+    'edge_deg': edge_deg,
+    'teeth_up': teeth_up_down['teeth_up'],
+    'teeth_down': teeth_up_down['teeth_down'],
+  }
 
 def create_parts(filepath):
-  content = load_file(filepath)
-  vertices = get_vertices(content)
-  surfaces = get_surfaces(content)
-  print(surfaces)
-  parts = []
-  for surface in surfaces:
-    parts.extend(create_part(surface, surfaces, vertices))
-  return parts
+  """Create part specs for all edges."""
+  mesh = trimesh.load(filepath)
+  vertices = mesh.vertices.tolist()
+  faces = mesh.faces.tolist()
+  part_specs = []
+  for face in faces:
+    for s, e in zip(face, [*face[1:], face[0]]):
+      part_specs.append(create_part_spec(s, e, face, faces, vertices))
+  return part_specs
 
 def create_svg(point_pair_list, filename):
   if filename[-4:] != '.svg':
@@ -208,7 +151,6 @@ def get_squiggle_points(current, angle, lip_width = 1.5, lip_angle = 30.0):
 
   return points
 
-# part = parts_list[0]
 def get_teeth_points(current, part, angle=0, target_teeth_width=20):
   teeth_count = int(round(part['length'] / target_teeth_width * 2, 0))
   teeth_width = part['length'] / teeth_count / 2
@@ -231,47 +173,141 @@ def get_teeth_points(current, part, angle=0, target_teeth_width=20):
   return points
 
 def draw_parts(parts_list, out_path):
-  point_pair_list = []
-
-  for i, part in enumerate(parts_list):
-
-    start_point = [0, i * (width + 2) + 2]
+  all_point_pair_list = []
+  y = 0
+  last_edge_common = ""
+  for part in parts_list:
+    
+    point_pair_list = []
 
     # Core points
+    start_point = [0, 0]
     end_point = [start_point[0] + part['length'], start_point[1]]
-    start_angle = part['start_angle'] / 2
     start_back = [
-      start_point[0] + width / np.tan(deg_to_rad(start_angle)),
+      start_point[0] + width / np.tan(deg_to_rad(part['start_angle'] / 2)),
       start_point[1] + width
     ]
-    end_angle = part['end_angle'] / 2
     end_back = [
-      start_point[0] + part['length'] - width / np.tan(deg_to_rad(end_angle)),
+      start_point[0] + part['length'] - width / np.tan(deg_to_rad(part['end_angle'] / 2)),
       start_point[1] + width
     ]
 
+    # Left corner
     points = get_squiggle_points(start_point, part['start_angle'] / 2)
     for s, e in zip(points[0:-1], points[1:]):
       point_pair_list.append([s, e])
 
+    # Bottom line
     point_pair_list.append([start_back, end_back])
 
+    # Right corner
     points = get_squiggle_points(end_point, 180 - part['end_angle'] / 2)
     for s, e in zip(points[0:-1], points[1:]):
       point_pair_list.append([s, e])
 
-    # point_pair_list.append([end_point, start_point])
-
+    # Top line
     teeth_points = get_teeth_points([start_point[0], start_point[1] + part['teeth_down']], part)
     for s, e in zip(teeth_points[0:-1], teeth_points[1:]):
       point_pair_list.append([s, e])
 
-    create_svg(point_pair_list, out_path)
+    # Rotate if same edge
+    if part['edge_common'] != last_edge_common:
+      point_pair_list = rotate_list(point_pair_list, 180, [50, 0])
+      mins = min_list(flatten_pair_list(point_pair_list))
+      point_pair_list = shift_list(point_pair_list, [-1 * e for e in mins])
+      # point_pair_list = shift_list(point_pair_list, [13, 0])
 
-# Create part definition
+    # Shift
+    point_pair_list = shift_list(point_pair_list, [0, y])
+
+    # Add points
+    all_point_pair_list.extend(point_pair_list)
+
+    # Update start pos
+    if part['edge_common'] == last_edge_common:
+      y = y + width
+    else:
+      y = y + width + part['teeth_up'] - part['teeth_down']
+    last_edge_common = part['edge_common']
+
+  # Write to file
+  create_svg(all_point_pair_list, out_path)
+
+def merge_triangles(filepath):
+  """Reassemble n-sided shapes
+
+  Restricting to 4 sides for now"""
+  
+  # Load mesh
+  mesh = trimesh.load(filepath)
+
+  # Detect combos
+  vertices = mesh.vertices.tolist()
+  faces = mesh.faces.tolist()
+  normals = mesh.face_normals
+  combos = []
+  for i in range(0, len(faces) - 1):
+    for j in range(i, len(faces)):
+      if len(set([*faces[i], *faces[j]])) == 4:  # Matching edge
+        if compute_deg_between_lines(normals[i], normals[j]) < 0.001:
+          combos.append([i, j])
+
+  print(combos)
+  
+  # Early exit in case not combos were detected
+  if len(combos)==0:
+    print('No split faces detected, not merging faces')
+    return
+
+  # Merge faces
+  # The logic is not straightforward here
+  # Basically the new faces should not contain the shared edge
+  # Therefor we loop through the numbers in the first face until we are on the second
+  # of share vertices. We include that vertex and the next vertex (which is unshare)
+  # and the vertix after, which is again a shared vertex, but because their are not 
+  # in succession they do not represent the shared edge. 
+  # All that is left to do after is include remaining non-shared vertex from the
+  # other shape.
+  print('Split faces were detected, will attempt to merge them')
+  print('If you have faces with more than 4 four sides, you might be in trouble, sorry')
+  merged_faces = []
+  for combo in combos:
+    fi = faces[combo[0]]
+    fj = faces[combo[1]]
+    f_numbers =[*fi, *fj]
+    fii = [*fi, *fi]
+    f_counts = Counter(f_numbers)
+    f_shared = [k for k, v in f_counts.items() if v == 2]
+    merged_face = []
+    for i in range(len(fii)):
+      if (fii[i] in f_shared) & (fii[i+1] in f_shared):
+        merged_face.extend(fii[i+1: i+4])
+        merged_face.extend([jv for jv in fj if jv not in fi])
+        break
+    merged_faces.append(merged_face)
+
+  # Create a new mesh and overwrite file.
+  # TODO: This is messed up but this actually resplits this into triangles
+  # and it even appears to do it on load. 
+  merged_mesh = trimesh.Trimesh(vertices, merged_faces)
+  merged_mesh.export(filepath)
+
+# Main
+
+# Create part specs
 parts_list = create_parts(filepath)
-# parts_list = parts_list[0:3]  # TODO: Remove
-print(parts_list)
+
+# Merge trianges
+merge_triangles(filepath)
+
+# Sort by length and edge identifiers
+sorted_parts_list = sorted(parts_list, key=lambda p: (p['length'], p['edge_common']))
 
 # Draw parts
-draw_parts(parts_list, out_path)
+draw_parts(sorted_parts_list, out_path)
+
+# Visualize
+visualize(filepath)
+
+
+
